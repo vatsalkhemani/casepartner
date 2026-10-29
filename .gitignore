@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.DS_Store
+.taste-skill/
+
+# Casebook-derived content and real session data never enter git
+cases/private/
+sessions/
+evals/labels/private/
+*.pdf
