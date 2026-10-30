@@ -2,6 +2,22 @@
 
 Error analysis from live runs against the real model, newest first. Each finding names what broke, the fix, and the test that now holds it. Run a profile with `node evals/live.mjs <strong|lost|approach|adversary> [candidate_led|interviewer_led]` against a running app.
 
+## 2026-10-30, a real uploaded case (WCC Electro Chargers) with a questioning candidate
+
+| What broke | Fix | Held by |
+|---|---|---|
+| Text-only compile rejected twice: nulls in table fields, "interviewee-led" as a format | Normalisation absorbs nulls and casebook format names; failures are logged | `absorbs nulls in tables and casebook format names` |
+| Director timed out on uploaded cases: it was sent the whole pack every turn | Director gets the prompt, fact topics, a one-line list of questions, and the current part only | live runs: model turns ~1.3-2.5s |
+| Free-tier quota saturated: actor models 429 | The actor model is called only for beats that need language (term explanations, answers from the table); about one model call per turn instead of three | `a plain turn uses the casebook's words` |
+| Candidate named the city; Alex kept asking about "key quantitative factors" | A narrow `answeredQuestion` judgement, plus: committing to an answer closes an exhibit or qualitative part | `committing to an answer closes the part` |
+| Candidate did the station math early; Alex asked for it again | An answer given before its question is credited and the case moves on | `math already done before its question is credited` |
+| "Is the rent per year?" got "Okay." | Unmatched questions are answered from what is on the table, or the candidate is told to assume | `an unmatched question is answered from what's on the table` |
+| AI grader output rejected on "good enough" vs "good_enough"; director rejected on a null or a long term | Tolerant parsing for levels, nulls and long strings | live debrief returned `model` |
+
+What worked first time: term explanations, honest check-ins, hints on request, exhibits as the real casebook pages, rounding accepted. No leak in any run.
+
+Still open: free-tier rate limits still push some turns to 5s and to rules mode. Billing on the Gemini key removes this.
+
 ## 2026-10-29, first live runs (Gemini, free tier)
 
 | What broke | Fix | Held by |

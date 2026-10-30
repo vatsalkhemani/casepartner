@@ -30,11 +30,11 @@ export const Decision = z.object({
   // the question can be answered from facts already shared or exhibits already shown
   answerVisible: z.boolean().default(false),
   // a business term the candidate asked about, e.g. "EBITDA" (explained generally, never with case data)
-  explainTerm: z.string().max(60).nullable().default(null),
+  explainTerm: z.preprocess((v) => (typeof v === "string" ? v.slice(0, 60) : v), z.string().max(60).nullable()).default(null),
   // candidate is asking for something they cannot have (the answer, a future exhibit)
   deflect: z.boolean().default(false),
   wantsRepeat: z.enum(["none", "prompt", "question"]).default("none"),
-  stageDirection: z.string().max(600).default(""),
+  stageDirection: z.preprocess((v) => (typeof v === "string" ? v.slice(0, 600) : v), z.string()).default(""),
   flags: z
     .array(z.object({ dimension: z.string(), polarity: z.enum(["+", "-"]), evidence: z.string().max(600), note: z.string().max(400) }))
     .max(4)
