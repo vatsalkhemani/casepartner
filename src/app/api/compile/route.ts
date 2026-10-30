@@ -32,8 +32,10 @@ export async function POST(req: Request) {
       const raw = await generate(prompt, { role: "compiler", json: true, temperature: 0.1, maxTokens: 16_000, timeoutMs: 110_000, images });
       const { pack, error } = parsePack(normalise(JSON.parse(raw), book, caseTitle));
       if (pack) return NextResponse.json({ pack, warnings: review(pack) });
+      console.warn(`[compile] attempt ${attempt + 1} did not fit: ${error}`);
       prompt += `\n\nYour previous reply did not fit the shape: ${error}. Reply again with corrected JSON only.`;
     } catch (e) {
+      console.warn(`[compile] attempt ${attempt + 1} failed: ${e instanceof Error ? e.message.slice(0, 300) : e}`);
       if (attempt === 1) return NextResponse.json({ error: e instanceof Error ? e.message : "The case could not be read." }, { status: 502 });
     }
   }

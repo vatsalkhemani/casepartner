@@ -120,7 +120,8 @@ function ruleJudge(pack: CasePack, state: SessionState, s: Signals): z.infer<typ
   const nudgeTotal = s.nudges.reduce((a, n) => a + n.levels.length, 0);
   const math = s.mathAttempts;
   const lv = (good: boolean, great = false): Level => (great ? "standout" : good ? "good_enough" : "not_yet");
-  const brainstorm = state.transcript.filter((t) => t.role === "candidate" && t.partId === "ideas").map((t) => t.text).join(" ");
+  const brainstormIds = new Set(pack.parts.filter((p) => p.kind === "brainstorm").map((p) => p.id));
+  const brainstorm = state.transcript.filter((t) => t.role === "candidate" && t.partId && brainstormIds.has(t.partId)).map((t) => t.text).join(" ");
   const ideaGuess = brainstorm.split(/[,.;]|\band\b/).filter((x) => x.trim().split(/\s+/).length >= 3).length;
   const rec = said("synthesis");
   return {
@@ -152,9 +153,10 @@ export async function makeDebrief(pack: CasePack, state: SessionState): Promise<
   let source: Debrief["source"] = "model";
   try {
     if (!hasGemini()) throw new Error("no model");
-    const raw = await generate(judgePrompt(pack, state, signals), { role: "judge", json: true, temperature: 0.2, maxTokens: 4000, timeoutMs: 40_000 });
+    const raw = await generate(judgePrompt(pack, state, signals), { role: "judge", json: true, temperature: 0.2, maxTokens: 8000, timeoutMs: 45_000 });
     judged = Judged.parse(JSON.parse(raw));
-  } catch {
+  } catch (e) {
+    console.warn(`[debrief] model judge failed, using rules: ${e instanceof Error ? e.message.slice(0, 200) : e}`);
     judged = ruleJudge(pack, state, signals);
     source = "rules";
   }

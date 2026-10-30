@@ -37,6 +37,30 @@ const words = (s: string) => [...new Set(s.toLowerCase().match(/[a-z]{4,}/g) ?? 
 
 type Loose = Record<string, unknown> & { parts?: Record<string, unknown>[]; exhibits?: Record<string, unknown>[]; clarifyingFacts?: Record<string, unknown>[] };
 
+// Models return null for empty fields; the schema wants them absent.
+function cleanTable(t: unknown) {
+  const table = t as { columns?: unknown[]; rows?: unknown[][]; unit?: unknown; note?: unknown } | null | undefined;
+  if (!table || !Array.isArray(table.rows) || !table.rows.length) return undefined;
+  const cell = (c: unknown) => (typeof c === "number" ? c : c == null ? "" : String(c));
+  return {
+    columns: Array.isArray(table.columns) ? table.columns.map((c) => String(c ?? "")) : [],
+    rows: table.rows.filter(Array.isArray).map((r) => r.map(cell)),
+    ...(typeof table.unit === "string" && table.unit ? { unit: table.unit } : {}),
+    ...(typeof table.note === "string" && table.note ? { note: table.note } : {}),
+  };
+}
+
+// Casebooks say "interviewee-led"; the schema says candidate_led.
+function formats(raw: unknown): ("interviewer_led" | "candidate_led")[] {
+  const out = new Set<"interviewer_led" | "candidate_led">();
+  for (const f of Array.isArray(raw) ? raw : [raw]) {
+    const s = String(f ?? "").toLowerCase();
+    if (/interviewer/.test(s)) out.add("interviewer_led");
+    else if (/(candidate|interviewee)/.test(s)) out.add("candidate_led");
+  }
+  return out.size ? [...out] : ["candidate_led", "interviewer_led"];
+}
+
 // Fill what the model tends to leave out, so one missing field does not sink a case.
 export function normalise(raw: Loose, book: string, caseTitle: string): unknown {
   const exhibits = (raw.exhibits ?? []).map((e, i) => ({
@@ -44,7 +68,7 @@ export function normalise(raw: Loose, book: string, caseTitle: string): unknown 
     label: String(e.label ?? `Exhibit ${String.fromCharCode(65 + i)}`),
     title: String(e.title ?? e.label ?? "Exhibit"),
     page: typeof e.page === "number" ? e.page : undefined,
-    table: e.table && Array.isArray((e.table as { rows?: unknown }).rows) ? e.table : undefined,
+    table: cleanTable(e.table),
   }));
   const ids = new Set(exhibits.map((e) => e.id));
   const fact = (f: Record<string, unknown>, i: number, prefix: string) => ({
@@ -99,7 +123,7 @@ export function normalise(raw: Loose, book: string, caseTitle: string): unknown 
     version: 1,
     source: { kind: "upload", book },
     meta: {
-      formats: Array.isArray(meta.formats) && meta.formats.length ? meta.formats : ["candidate_led", "interviewer_led"],
+      formats: formats(meta.formats),
       type: String(meta.type ?? "Case"),
       industry: String(meta.industry ?? ""),
       difficulty: Math.min(3, Math.max(1, Number(meta.difficulty ?? 2))),

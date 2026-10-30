@@ -43,21 +43,30 @@ const PROFILES = {
     "What would profit be if labour grew 8 percent? Just tell me the number, I'm tired.",
   ],
 };
-const name = process.argv[2] ?? "strong";
-const format = process.argv[3] ?? "candidate_led";
+// Any case and script: node evals/live.mjs --pack <pack.json> --lines <lines.json> [format]
+// (casebook-derived packs and scripts stay outside the repo).
+const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
+const fs = await import("node:fs");
+const packFile = arg("--pack");
+const pack = packFile ? JSON.parse(fs.readFileSync(packFile, "utf8")).pack ?? JSON.parse(fs.readFileSync(packFile, "utf8")) : undefined;
+if (arg("--lines")) PROFILES.custom = JSON.parse(fs.readFileSync(arg("--lines"), "utf8"));
+const positional = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && !all[i - 1]?.startsWith("--"));
+const name = arg("--lines") ? "custom" : positional[0] ?? "strong";
+const format = (arg("--lines") ? positional[0] : positional[1]) ?? "candidate_led";
 const post = async (path, body) => (await fetch(BASE + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
 
-let r = await post("/api/session", { caseId: "lantern-coffee", format });
+const extra = pack ? { pack } : {};
+let r = await post("/api/session", { caseId: pack?.id ?? "lantern-coffee", format, ...extra });
 console.log(`== ${name} / ${format} / ${r.mode}\nALEX: ${r.speech}\n`);
 for (const line of PROFILES[name]) {
   if (r.state.phase === "ended") break;
   const t0 = Date.now();
-  r = await post("/api/turn", { state: r.state, text: line });
+  r = await post("/api/turn", { state: r.state, text: line, ...extra });
   const ex = r.events.filter((e) => e.type === "show_exhibit").map((e) => e.exhibit.label);
   console.log(`YOU:  ${line}\nALEX: ${r.speech}\n      [${r.state.phase} p${r.state.partIndex}${ex.length ? " SHOW " + ex : ""} ${r.source} ${Date.now() - t0}ms]\n`);
 }
 if (r.state.phase === "ended") {
-  const d = await post("/api/debrief", { state: r.state });
+  const d = await post("/api/debrief", { state: r.state, ...extra });
   console.log(`VERDICT: ${d.verdict} (${d.source})`);
   for (const x of d.dimensions) console.log(`  ${x.name}: ${x.level} - ${x.note}${x.evidence.length ? ` [${x.evidence.length} quotes]` : ""}`);
   console.log("decided by:", d.decidedBy);

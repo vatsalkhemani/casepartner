@@ -66,3 +66,23 @@ describe("finding cases", () => {
     expect(locateCase(book, "Lunar Mining")).toBeNull();
   });
 });
+
+import { normalise, parsePack } from "@/lib/case/compile";
+
+describe("normalising what the model returns", () => {
+  it("absorbs nulls in tables and casebook format names", () => {
+    const raw = {
+      title: "X",
+      meta: { formats: ["Interviewee-led"] },
+      prompt: { readAloud: "Your client..." },
+      parts: [{ kind: "math", question: "How many?", exhibits: ["A", "Z"], expected: { numeric: [{ value: "96", unit: "stations" }] } }],
+      exhibits: [{ id: "A", label: "Exhibit A", title: "Cities", page: 3, table: { columns: ["City", "EVs"], rows: [["NY", 60000], ["DC", null]], unit: null, note: null } }],
+    };
+    const { pack, error } = parsePack(normalise(raw, "Book", "X"));
+    expect(error).toBeUndefined();
+    expect(pack!.meta.formats).toEqual(["candidate_led"]);
+    expect(pack!.exhibits[0].table!.rows[1]).toEqual(["DC", ""]);
+    expect(pack!.parts[0].exhibits).toEqual(["A"]); // a reference to a missing exhibit is dropped
+    expect(pack!.parts[0].expected.numeric[0].value).toBe(96);
+  });
+});

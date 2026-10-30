@@ -15,6 +15,6 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "unknown or invalid case" }, { status: 400 });
   }
-  if (!pack.meta.formats.includes(body.data.format)) return NextResponse.json({ error: "format not supported" }, { status: 400 });
+  // Any case can be practised either way; the book's format is only the default.
   return NextResponse.json({ ...startSession(pack, body.data.format), mode: hasGemini() ? "model" : "rules" });
 }

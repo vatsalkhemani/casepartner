@@ -278,8 +278,7 @@ export function Upload() {
           </details>
 
           <div className="flex flex-wrap items-center gap-3">
-            {pack.meta.formats.length > 1 &&
-              pack.meta.formats.map((f) => (
+            {(["candidate_led", "interviewer_led"] as const).map((f) => (
                 <label key={f} className={`cursor-pointer rounded-full px-4 py-2 ${format === f ? "bg-ground-3 text-ink" : "text-ink-2"}`}>
                   <input type="radio" className="sr-only" checked={format === f} onChange={() => setFormat(f)} />
                   {f === "candidate_led" ? "Candidate-led" : "Interviewer-led"}
