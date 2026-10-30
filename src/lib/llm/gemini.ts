@@ -1,73 +1,72 @@
 // Minimal Gemini REST client. Server-only: the key never reaches the browser.
 //
-// Model names get retired. If GEMINI_MODEL is unset or stops answering, the
-// client lists the models the key can use and picks the newest Flash model.
+// Models were chosen by measuring them on this app's real prompts
+// (2026-10-29): the newest Flash was over its free quota (429), so each role
+// has a ranked list and falls through on quota, retirement or timeout.
+// GEMINI_MODEL, if set, goes first for every role.
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
 
-let resolved: string | null = null;
+export type Role = "director" | "actor" | "judge";
+
+const MODELS: Record<Role, string[]> = {
+  director: ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.5-flash-lite"], // ~1s, careful judgement
+  actor: ["gemini-2.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"], // fastest, it only phrases beats
+  judge: ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"], // one call per case, can take longer
+};
+
+// Models that answered 429/404/410 are skipped for a while.
+const benched = new Map<string, number>();
+const BENCH_MS = 10 * 60_000;
 
 export function hasGemini() {
   return !!process.env.GEMINI_API_KEY && process.env.LLM_PROVIDER !== "rules";
 }
 
-function headers() {
-  return { "content-type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY ?? "" };
+function candidates(role: Role): string[] {
+  const list = [process.env.GEMINI_MODEL, ...MODELS[role]].filter((m): m is string => !!m);
+  const now = Date.now();
+  const live = [...new Set(list)].filter((m) => (benched.get(m) ?? 0) < now);
+  return live.length ? live : MODELS[role];
 }
 
-async function pickModel(): Promise<string> {
-  const res = await fetch(`${BASE}/models?pageSize=200`, { headers: headers() });
-  if (!res.ok) throw new Error(`Gemini list models failed: ${res.status}`);
-  const { models = [] } = (await res.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
-  const candidates = models
-    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
-    .map((m) => m.name.replace(/^models\//, ""))
-    .filter((n) => /flash/.test(n) && !/(image|tts|audio|live|embedding|thinking|exp|preview)/.test(n));
-  const version = (n: string) => Number(n.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? 0);
-  candidates.sort((a, b) => version(b) - version(a) || Number(/lite/.test(a)) - Number(/lite/.test(b)));
-  if (!candidates.length) throw new Error("No Gemini Flash model available for this key");
-  return candidates[0];
-}
+type GenerateOpts = { role: Role; system?: string; json?: boolean; temperature?: number; maxTokens?: number; timeoutMs?: number };
 
-async function model(): Promise<string> {
-  if (resolved) return resolved;
-  resolved = process.env.GEMINI_MODEL || (await pickModel());
-  return resolved;
-}
-
-type GenerateOpts = { system?: string; json?: boolean; temperature?: number; maxTokens?: number; timeoutMs?: number };
-
-export async function generate(prompt: string, opts: GenerateOpts = {}): Promise<string> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const name = await model();
-    const res = await fetch(`${BASE}/models/${name}:generateContent`, {
-      method: "POST",
-      headers: headers(),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 15_000),
-      body: JSON.stringify({
-        systemInstruction: opts.system ? { parts: [{ text: opts.system }] } : undefined,
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: opts.temperature ?? 0.4,
-          maxOutputTokens: opts.maxTokens ?? 800,
-          ...(opts.json ? { responseMimeType: "application/json" } : {}),
-        },
-      }),
-    });
-    if (res.status === 404 || res.status === 410) {
-      // retired or wrong name: re-pick once
-      resolved = await pickModel();
-      continue;
+export async function generate(prompt: string, opts: GenerateOpts): Promise<string> {
+  let lastError = "no model tried";
+  for (const name of candidates(opts.role)) {
+    const thinking = name.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: opts.role === "judge" ? 1024 : 0 } } : {};
+    try {
+      const res = await fetch(`${BASE}/models/${name}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY ?? "" },
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 12_000),
+        body: JSON.stringify({
+          systemInstruction: opts.system ? { parts: [{ text: opts.system }] } : undefined,
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: opts.temperature ?? 0.4,
+            maxOutputTokens: opts.maxTokens ?? 800,
+            ...(opts.json ? { responseMimeType: "application/json" } : {}),
+            ...thinking,
+          },
+        }),
+      });
+      if (res.status === 429 || res.status === 404 || res.status === 410) {
+        benched.set(name, Date.now() + BENCH_MS);
+        lastError = `${name} ${res.status}`;
+        console.warn(`[gemini] ${opts.role}: ${name} answered ${res.status}, trying the next model`);
+        continue;
+      }
+      if (!res.ok) throw new Error(`${name} ${res.status}: ${(await res.text()).slice(0, 160)}`);
+      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+      if (!text) throw new Error(`${name} returned no text`);
+      return text;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+      console.warn(`[gemini] ${opts.role}: ${name} failed (${lastError}), trying the next model`);
     }
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-    if (!text) throw new Error("Gemini returned no text");
-    return text;
   }
-  throw new Error("Gemini model unavailable");
-}
-
-export async function currentModel() {
-  return hasGemini() ? model() : null;
+  throw new Error(`Gemini unavailable for ${opts.role}: ${lastError}`);
 }

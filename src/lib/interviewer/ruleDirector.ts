@@ -46,7 +46,8 @@ export const ruleDirector: Director = async ({ pack, state, text, numeric }) => 
   }
 
   // Answer facts only when asked. Mentioning "revenue" mid-analysis is not a question.
-  const asking = /\?|\b(what|how|why|do we|did|does|is there|are there|can you|could you|any data|do you have|tell me)\b/i.test(text);
+  const stating = /\b(assume|assuming|let's say|let me say|i'll say|ballpark)\b/i.test(text);
+  const asking = !stating && /\?|\b(what|how|why|do we|did|does|is there|are there|can you|could you|any data|do you have|tell me)\b/i.test(text);
   // Repeat an answer only if the question asks for nothing new.
   if (asking) {
     const matched = matchFacts(pack, state, text);
@@ -64,7 +65,9 @@ export const ruleDirector: Director = async ({ pack, state, text, numeric }) => 
       return d;
     }
     case "structuring": {
-      d.gaveStructure = words(text) > 15;
+      // A weak structure is still a structure: take it on the second try and let the score reflect it.
+      const tries = state.transcript.filter((t) => t.role === "candidate" && t.phase === "structuring").length;
+      d.gaveStructure = words(text) > 15 || (tries >= 2 && words(text) >= 3);
       if (d.gaveStructure) d.revealFactIds = [];
       if (d.gaveStructure && !state.structureProbed && !lower.includes("cost")) {
         d.structureProbe = "Anything on the cost side you'd want to look at?";
@@ -85,14 +88,15 @@ export const ruleDirector: Director = async ({ pack, state, text, numeric }) => 
         return d;
       }
       if (part.kind === "math") {
+        // the engine judges the number and the method; ask for a nudge only if they gave nothing to judge
         if (numeric.kind === "correct") d.partComplete = true;
-        else d.nudgeLevel = Math.min(4, level + 1);
+        else if (numeric.kind === "none") d.nudgeLevel = Math.min(4, level + 1);
         return d;
       }
       if (part.kind === "brainstorm") {
         const min = part.expected.ideas?.min ?? 4;
         const total = state.transcript.filter((t) => t.role === "candidate" && t.partId === part.id).map((t) => ideaCount(t.text)).reduce((a, b) => a + b, 0) + ideaCount(text);
-        if (total >= min || state.brainstormPrompts >= 2) d.partComplete = true;
+        if (total >= min) d.partComplete = true;
         else d.nudgeLevel = 1;
         return d;
       }

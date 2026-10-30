@@ -52,6 +52,20 @@ function classify(s: SaidNumber, ans: NumericAnswer): Classified {
   return { kind: "wrong", answer: ans, value: inUnits, dist };
 }
 
+// Does the candidate's working use the inputs of the expected method? Used
+// when no model is available: "14 times 1.08, actual 16.6" is the right
+// method even if the subtraction slips. Approach matters more than precision.
+export function approachFromSteps(text: string, answer: NumericAnswer): boolean {
+  const said = new Set(extractNumbers(text).map((n) => n.value));
+  const inputs = new Set<number>();
+  for (const step of answer.steps) {
+    const nums = extractNumbers(step).map((n) => n.value);
+    nums.slice(0, -1).forEach((v) => inputs.add(v)); // the last number in a step is its result
+  }
+  const hits = [...inputs].filter((v) => said.has(v) || said.has(Math.round(v)) || (v > 1 && v < 2 && said.has(Math.round((v - 1) * 100)))).length;
+  return hits >= 2;
+}
+
 // Correct if any number the candidate said matches any expected answer.
 // Otherwise the last number they said is taken as their answer, because
 // candidates finish on the result ("so the gap is about 2 million").

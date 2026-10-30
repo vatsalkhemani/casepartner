@@ -109,7 +109,7 @@ function judgePrompt(pack: CasePack, state: SessionState, s: Signals): string {
     `Measured by code: ${JSON.stringify(s)}`,
     `Flags the interviewer noted live: ${JSON.stringify(state.flags)}`,
     `TRANSCRIPT:\n${state.transcript.map((t) => `[${Math.round(t.t / 1000)}s ${t.phase}] ${t.role === "candidate" ? "CANDIDATE" : "INTERVIEWER"}: ${t.text}`).join("\n")}`,
-    `Score each dimension: ${DIMENSIONS.map((d) => d.id).join(", ")}. Each nudge the candidate needed counts against "driving". Math is judged only from the code's math attempts plus whether they stated the approach first. If a part was never reached, its dimension is not_yet.`,
+    `Score each dimension: ${DIMENSIONS.map((d) => d.id).join(", ")}. Each nudge the candidate needed counts against "driving". Math is judged on APPROACH first: did they state the method before calculating, set it up correctly, and sanity-check the result? Rounding and stated assumptions are good practice, not errors. A right method with a small arithmetic slip is good_enough; a wrong method is not_yet; standout states the approach, rounds sensibly, and says what the number means. If a part was never reached, its dimension is not_yet.`,
     "evidence must be exact quotes of the CANDIDATE's words, copied verbatim, at most 3 per dimension. note is one or two sentences of feedback in second person. moments: the three moments that most affected the outcome, each with a verbatim candidate quote, a short title, and what a standout candidate would have said instead. drills: up to three specific practice drills.",
     'Reply with JSON only: {"dimensions":[{"id","level","evidence":[],"note"}],"moments":[{"quote","title","better"}],"drills":[]}',
   ].join("\n\n");
@@ -152,7 +152,7 @@ export async function makeDebrief(pack: CasePack, state: SessionState): Promise<
   let source: Debrief["source"] = "model";
   try {
     if (!hasGemini()) throw new Error("no model");
-    const raw = await generate(judgePrompt(pack, state, signals), { json: true, temperature: 0.2, maxTokens: 4000, timeoutMs: 40_000 });
+    const raw = await generate(judgePrompt(pack, state, signals), { role: "judge", json: true, temperature: 0.2, maxTokens: 4000, timeoutMs: 40_000 });
     judged = Judged.parse(JSON.parse(raw));
   } catch {
     judged = ruleJudge(pack, state, signals);

@@ -150,18 +150,67 @@ describe("nudges and probes", () => {
     expect(last.state.numericAttempts.at(-1)).toMatchObject({ correct: false, errorType: "wrong" });
   });
 
-  it("climbs the ladder and gives the answer only at level 4", async () => {
-    const lost = ["I'm not sure.", "Hmm, maybe revenue?", "I really don't know.", "No idea."];
+  it("math ladder is probe, specific hint, then give it and move on", async () => {
+    const lost = ["I'm not sure.", "Hmm, maybe revenue?", "I really don't know."];
     const log = await play([...STRONG.slice(0, 6), ...lost]);
-    const levels = log.at(-1)!.state.nudges["labour-math"];
-    expect(levels).toEqual([1, 2, 3, 4]);
-    expect(log.at(-1)!.state.phase).toBe("part");
-    expect(log.at(-1)!.state.partIndex).toBe(2);
+    expect(log.at(-1)!.state.nudges["labour-math"]).toEqual([1, 3, 4]);
+    expect(log.at(-1)!.state.partIndex).toBe(2); // moved on to the next part
+  });
+
+  it("an exhibit part is probe, direction, then give it and move on", async () => {
+    const log = await play([...STRONG.slice(0, 5), "Hmm.", "Rent went up?", "Not sure."]);
+    expect(log.at(-1)!.state.nudges["costs"]).toEqual([1, 2, 4]);
+    expect(log.at(-1)!.state.partIndex).toBe(1);
+    expect(log.at(-1)!.speech).toMatch(/size it/i); // the next question arrives in the same turn
   });
 
   it("brainstorm asks for more until four ideas", async () => {
     const log = await play([...STRONG.slice(0, 9), "Cut the menu back to best sellers."]);
     expect(log.at(-1)!.speech).toMatch(/anything else/i);
+  });
+});
+
+describe("approach over precision (how real casers judge math)", () => {
+  const upToMath = STRONG.slice(0, 6);
+  it("rounding is fine: 14 x 1.08 rounded to 15 gives 1.6", async () => {
+    const log = await play([...upToMath, "Let me round. 14 grown 8 percent is about 15, actual 16.6, so the excess is about 1.6 million."]);
+    expect(log.at(-1)!.state.numericAttempts.at(-1)).toMatchObject({ correct: true });
+    expect(log.at(-1)!.state.partIndex).toBe(2);
+  });
+
+  it("right method, slipped arithmetic: acknowledged and the case moves on", async () => {
+    const log = await play([...upToMath, "14 times 1.08 is about 15.5, actual 16.6, so the excess is about 1.1 million."]);
+    const last = log.at(-1)!;
+    expect(last.state.numericAttempts.at(-1)).toMatchObject({ correct: false, errorType: "arithmetic" });
+    expect(last.speech).toMatch(/right approach/i);
+    expect(last.state.partIndex).toBe(2);
+    expect(last.state.nudges["labour-math"] ?? []).toEqual([]);
+  });
+
+  it("a number with no method behind it gets probed, not accepted", async () => {
+    const log = await play([...upToMath, "I think it's 2.6 million."]);
+    expect(log.at(-1)!.speech).toMatch(/walk me through/i);
+    expect(log.at(-1)!.state.partIndex).toBe(1);
+  });
+
+  it("a stated assumption is accepted, not refused", async () => {
+    const log = await play(["Let me assume the average café does about 1.2 million a year in revenue."]);
+    expect(log.at(-1)!.speech).toMatch(/fair assumption/i);
+  });
+});
+
+describe("the case never stalls", () => {
+  it("a completely lost candidate still reaches the recommendation, every exhibit shown", async () => {
+    const lost = ["Okay.", "Can I take a moment?", "Revenue and costs I guess.", ...Array(30).fill("I'm not sure.")];
+    const log = await play(lost);
+    const reached = log.findIndex((r) => r.state.phase === "synthesis");
+    expect(reached).toBeGreaterThan(0);
+    expect(reached).toBeLessThanOrEqual(20);
+    expect(log[reached].state.shownExhibits).toEqual(["A", "B"]);
+    for (const part of pack.parts) {
+      const turns = log[reached].state.transcript.filter((t) => t.role === "candidate" && t.partId === part.id).length;
+      expect(turns, part.id).toBeLessThanOrEqual(4);
+    }
   });
 });
 

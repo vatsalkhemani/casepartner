@@ -115,7 +115,7 @@ export const lanternCoffee = CasePack.parse({
             label: "Excess labour cost versus 8% growth",
             value: 1.48,
             unit: "$M",
-            tolerancePct: 5,
+            tolerancePct: 12, // rounding 14 x 1.08 to 15 gives 1.6, which a caser accepts
             steps: ["Labour at 8% growth: 14.0 x 1.08 = 15.12", "Actual labour: 16.6", "Gap: 16.6 - 15.12 = 1.48"],
           },
           {
@@ -123,7 +123,7 @@ export const lanternCoffee = CasePack.parse({
             label: "Operating profit if labour grew 8%",
             value: 5.48,
             unit: "$M",
-            tolerancePct: 3,
+            tolerancePct: 4,
             steps: ["4.0 + 1.48 = 5.48, about 5.5 million"],
           },
         ],

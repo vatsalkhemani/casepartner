@@ -17,6 +17,10 @@ export const Decision = z.object({
   // parts: enough to move on?
   partComplete: z.boolean().default(false),
   nudgeLevel: z.number().int().min(0).max(4).default(0),
+  // math: is the method right, whatever the arithmetic? null = not judged
+  approachSound: z.boolean().nullable().default(null),
+  // the candidate stated an assumption rather than asking for data
+  acceptsAssumption: z.boolean().default(false),
   // candidate is asking for something they cannot have (the answer, a future exhibit)
   deflect: z.boolean().default(false),
   wantsRepeat: z.enum(["none", "prompt", "question"]).default("none"),

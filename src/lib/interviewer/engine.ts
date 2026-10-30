@@ -1,8 +1,9 @@
 import type { CasePack, Exhibit } from "../case/schema";
 import { Decision, type Director } from "./decision";
 import { actorView, templateLine, type ActorView, type Beat } from "./actor";
-import { judgeNumbers, type NumericVerdict } from "./numeric";
-import { canShowExhibit, currentPart, factById, filterFactIds, matchesAny, nudgeLevelSoFar } from "./policy";
+import { approachFromSteps, judgeNumbers, type NumericVerdict } from "./numeric";
+import { canShowExhibit, candidateTurnsInPart, currentPart, factById, filterFactIds, matchesAny } from "./policy";
+import type { Part } from "../case/schema";
 import { leaks, unearnedSecrets } from "./secrets";
 import { ruleDirector } from "./ruleDirector";
 import { newSession, type SessionState } from "./session";
@@ -16,6 +17,17 @@ export type TurnEvent =
   | { type: "end" };
 
 export type TurnResult = { state: SessionState; speech: string; events: TurnEvent[]; source: "model" | "rules" };
+
+// How real casers escalate: a probe, then direction, then give it and move on.
+// Math gets a specific hint before the answer. Nobody is held on a part long.
+const LADDER: Record<Part["kind"], number[]> = { exhibit: [1, 2, 4], qualitative: [1, 2, 4], math: [1, 3, 4], brainstorm: [1, 1] };
+const MAX_TURNS_IN_PART = 4;
+const ASSUMES = /\b(assume|assuming|let's say|let us say|i'll say|ballpark|roughly estimate)\b/i;
+
+function nextRung(part: Part, given: number[]): number {
+  const seq = LADDER[part.kind];
+  return given.length >= seq.length ? 4 : seq[given.length];
+}
 
 const QUESTION = /\?|^(what|how|why|do|does|did|is|are|can|could|would|should|where|when|who|any)\b/i;
 
@@ -120,11 +132,17 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
       enterPart(pack.parts.length);
     } else switch (state.phase) {
       case "clarifying":
-        if (decision.wantsTimeToStructure) {
+        if (!sharedFact && (decision.acceptsAssumption || ASSUMES.test(text)) && !decision.gaveStructure && !decision.wantsTimeToStructure) {
+          beats.push({ kind: "accept_assumption" });
+        } else if (decision.wantsTimeToStructure) {
           state.phase = "structuring";
           beats.push({ kind: "allow_time" });
         } else if (decision.gaveStructure) handleStructure();
-        else if (!sharedFact) beats.push(QUESTION.test(text.trim()) ? { kind: "no_info" } : { kind: "ack" });
+        else if (state.transcript.filter((x) => x.role === "candidate" && x.phase === "clarifying").length >= 5) {
+          // A caser does not let the opening run forever: prompt for the structure.
+          state.phase = "structuring";
+          beats.push({ kind: "ask", text: "Good questions. How would you like to structure this?" });
+        } else if (!sharedFact) beats.push(QUESTION.test(text.trim()) ? { kind: "no_info" } : { kind: "ack" });
         break;
 
       case "structuring":
@@ -155,27 +173,47 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
         }
         if (decision.showExhibit && state.shownExhibits.includes(decision.showExhibit)) show(decision.showExhibit);
 
+        // Math: approach first. A right method with a slip in the arithmetic is
+        // acknowledged and the case moves on, the way a real caser does it.
+        let mathDone = false;
         if (part.kind === "math" && numeric.kind !== "none") {
-          state.numericAttempts.push({ partId: part.id, value: numeric.value, correct: numeric.kind === "correct", errorType: numeric.kind === "correct" ? undefined : numeric.kind, t });
-          beats.push({ kind: "math_result", result: numeric.kind });
+          const sound = numeric.kind === "wrong" && (decision.approachSound ?? approachFromSteps(text, numeric.answer));
+          state.numericAttempts.push({ partId: part.id, value: numeric.value, correct: numeric.kind === "correct", errorType: numeric.kind === "correct" ? undefined : sound ? "arithmetic" : numeric.kind, t });
+          if (numeric.kind === "correct") {
+            beats.push({ kind: "math_result", result: "correct" });
+            mathDone = true;
+          } else if (sound) {
+            beats.push({ kind: "close_enough", value: `${numeric.answer.value.toFixed(1)} ${numeric.answer.unit.replace("$M", "million")}` });
+            allowPart = part.id;
+            mathDone = true;
+          } else {
+            beats.push({ kind: "math_result", result: numeric.kind });
+          }
         }
-        const mathOpen = part.kind === "math" && numeric.kind !== "correct";
-        if (decision.partComplete && !mathOpen) {
-          beats.push({ kind: "ack" });
+
+        const given = state.nudges[part.id] ?? [];
+        const stalled = candidateTurnsInPart(state, part.id) >= MAX_TURNS_IN_PART;
+        const brainstormDone = part.kind === "brainstorm" && state.brainstormPrompts >= LADDER.brainstorm.length;
+        const complete = mathDone || brainstormDone || (decision.partComplete && part.kind !== "math");
+
+        if (complete) {
+          if (!mathDone) beats.push({ kind: "ack" });
           enterPart(state.partIndex + 1);
-        } else if (decision.nudgeLevel > 0) {
-          const level = part.kind === "brainstorm" ? 1 : Math.min(4, Math.max(decision.nudgeLevel, nudgeLevelSoFar(state, part.id) + 1));
+        } else if (decision.nudgeLevel > 0 || stalled || (part.kind === "math" && numeric.kind !== "none")) {
+          const level = stalled ? 4 : nextRung(part, given);
           recordNudge(part.id, level);
           if (part.kind === "brainstorm") state.brainstormPrompts++;
-          // A wrong number already got a probe ("walk me through it"); that is the first rung.
-          if (level === 1 && part.kind === "math" && numeric.kind !== "none") break;
-          const textFor = { 1: part.nudges.l1, 2: part.nudges.l2, 3: part.nudges.l3, 4: part.nudges.l4 }[level]!;
-          beats.push({ kind: "nudge", level, text: textFor });
+          // a wrong number already got its probe ("walk me through it"): that is rung one
+          if (!(level === 1 && part.kind === "math" && numeric.kind !== "none")) {
+            const textFor = { 1: part.nudges.l1, 2: part.nudges.l2, 3: part.nudges.l3, 4: part.nudges.l4 }[level]!;
+            beats.push({ kind: "nudge", level, text: textFor });
+          }
           if (level === 4) {
+            // give it, then keep the case moving: the next part (and its exhibit) comes now
             allowPart = part.id;
             enterPart(state.partIndex + 1);
           }
-        } else if (!sharedFact) beats.push({ kind: "ack" });
+        } else if (!sharedFact) beats.push(decision.acceptsAssumption || ASSUMES.test(text) ? { kind: "accept_assumption" } : { kind: "ack" });
         break;
       }
 

@@ -15,6 +15,8 @@ export type Beat =
   | { kind: "probe"; text: string }
   | { kind: "nudge"; level: number; text: string }
   | { kind: "math_result"; result: "correct" | "wrong" | "magnitude" }
+  | { kind: "close_enough"; value: string }
+  | { kind: "accept_assumption" }
   | { kind: "steer" }
   | { kind: "handoff"; label: string; title: string }
   | { kind: "ask"; text: string }
@@ -69,6 +71,8 @@ export function templateLine(beats: Beat[], seed = 0): string {
       case "math_result":
         out.push(b.result === "correct" ? "Yes, that's right." : b.result === "magnitude" ? "Hmm. Does that number sound reasonable to you?" : "Can you walk me through how you got there?");
         break;
+      case "close_enough": out.push(`Right approach. I get about ${b.value}, but the method is what matters. Let's keep going.`); break;
+      case "accept_assumption": out.push("That's a fair assumption. Go with it."); break;
       case "steer": out.push("Sure, we can come back to that. Before we do, the team just sent something over."); break;
       case "handoff": out.push(`Here's ${b.label}.`); break;
       case "ask": out.push(b.text); break;
@@ -114,6 +118,8 @@ function describeBeat(b: Beat): string {
         : b.result === "magnitude"
           ? "Without saying it's wrong, ask whether that number sounds reasonable. Do not give the right number."
           : "Without saying the right number, ask them to walk you through how they got there.";
+    case "close_enough": return `Say their method is right, you get about ${b.value}, the method is what matters, and move on. Keep it to one or two sentences.`;
+    case "accept_assumption": return "Accept their assumption as reasonable and tell them to go with it.";
     case "steer": return "Say you can come back to that, but first the team just sent something over.";
     case "handoff": return `Hand over ${b.label} ("${b.title}") as if sliding a sheet across the table.`;
     case "ask": return `Ask this question: "${b.text}"`;
