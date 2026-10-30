@@ -4,7 +4,7 @@ import { actorView, templateLine, type ActorView, type Beat } from "./actor";
 import { approachFromSteps, judgeNumbers, type NumericVerdict } from "./numeric";
 import { canShowExhibit, candidateTurnsInPart, currentPart, factById, filterFactIds, GRAB, matchesAny, matchFacts, TIME_ASK } from "./policy";
 import type { Part } from "../case/schema";
-import { leaks, unearnedSecrets } from "./secrets";
+import { claimsAboutUnshown, leaks, unearnedSecrets, unshownTopics } from "./secrets";
 import { ruleDirector } from "./ruleDirector";
 import { newSession, type SessionState } from "./session";
 
@@ -128,10 +128,13 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
   } else if (decision.deflect) {
     beats.push({ kind: "deflect" });
   } else {
+    // Facts answer questions, and only the facts the question is about. Live
+    // runs showed the model handing over geography for "should they raise
+    // prices?", so the match is done by the case pack's keywords, not the model.
     const asked = QUESTION.test(text.trim()) || /\?/.test(text);
-    const proposed = asked ? filterFactIds(pack, state, decision.revealFactIds) : [];
-    const matched = new Set(matchFacts(pack, state, text).map((f) => f.id));
-    const toReveal = [...proposed.filter((id) => matched.has(id)), ...proposed.filter((id) => !matched.has(id))].slice(0, 2);
+    const matched = asked ? matchFacts(pack, state, text).map((f) => f.id) : [];
+    const fresh = matched.filter((id) => !state.revealedFacts.includes(id));
+    const toReveal = filterFactIds(pack, state, fresh.length ? fresh : matched).slice(0, 2);
     for (const id of toReveal) {
       const fact = factById(pack, id);
       if (!fact) continue;
@@ -260,7 +263,7 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
   if (engine.actor) {
     try {
       const said = (await engine.actor(actorView(pack, state, beats, director))).replace(/\s*\n+\s*/g, " ").trim();
-      if (said && !leaks(said, secrets)) speech = said;
+      if (said && !leaks(said, secrets) && !claimsAboutUnshown(said, unshownTopics(pack, state))) speech = said;
     } catch {
       /* the template line stands */
     }

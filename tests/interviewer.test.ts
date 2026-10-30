@@ -264,6 +264,18 @@ describe("facts and exhibits behave like a real caser", () => {
     expect(seen).not.toMatch(/rent is flat/i);
   });
 
+  it("a guessed claim about an unshown exhibit is never spoken", async () => {
+    const r0 = startSession(pack, "candidate_led", T0);
+    const r1 = await runTurn(pack, r0.state, "Is it rent?", { director: async () => Decision.parse({}), actor: async () => "Rent has remained flat over the last two years." }, T0 + 1000);
+    expect(r1.speech).not.toMatch(/flat/i);
+  });
+
+  it("the same claim is fine once the exhibit is on the table", async () => {
+    const log = await play(STRONG.slice(0, 5)); // Exhibit A is on the table
+    const r = await runTurn(pack, log.at(-1)!.state, "Is rent a driver?", { director: async () => Decision.parse({}), actor: async () => "Rent is roughly flat, as you can see." }, T0 + 999_000);
+    expect(r.speech).toMatch(/flat/i);
+  });
+
   it("a shown exhibit is handed over again only when asked", async () => {
     const log = await play(STRONG.slice(0, 5));
     const state = log.at(-1)!.state;

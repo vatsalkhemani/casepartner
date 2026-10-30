@@ -45,9 +45,27 @@ GREETING → PROMPT → CLARIFYING → STRUCTURING (silence allowed) → STRUCTU
 
 On screen, an exhibit **slides in when unlocked, stays up during its part, and moves to a "seen" tray when the part closes**. The candidate can say "can I see Exhibit A again?" and it comes back. There is no browsing ahead, because there is nothing ahead to browse: future exhibits are not in the browser.
 
+## 3b. How real casers run it (the rules this is built on)
+
+From casebook interviewer notes (WCC, Kellogg), RocketBlocks' and CaseCoach's guides for case partners, and interviewer answers on PrepLounge:
+
+- **Keep the case moving.** A caser does not wait out a lost candidate. They hint, redirect, and then hand over the next exhibit anyway. No part holds a candidate for more than four turns.
+- **Roll with a different structure** if it could still answer the question. Probe only when a branch the case needs is missing. A weak structure is taken on the second try and the score reflects it.
+- **Approach over precision.** Rounding and stated assumptions are good practice. A right method with a slipped number gets "right approach, I get about 1.5, let's keep going" and the case moves on; only a wrong or missing method gets probed.
+- **Assumptions stand.** "Let me assume X" gets "fair assumption, go with it", not "we don't have that".
+- **Answer what is asked, nothing more.** Facts go out only in answer to a question, and only the facts it is about.
+
 ## 4. The nudge ladder
 
-Every part carries its own ladder in the case pack. The director climbs one rung at a time, and every rung counts against "case leadership" in scoring.
+Every part carries its own hint text in the case pack. The engine climbs a short ladder and then moves on; every rung counts against "driving the case" in scoring.
+
+| Part | Ladder |
+|---|---|
+| Exhibit or qualitative | probe, direction, then give it and move on |
+| Math | probe the method, a specific hint, then give it and move on |
+| Brainstorm | "anything else?" twice, then move on |
+
+The table below describes what each rung sounds like.
 
 | Level | Name | Example | When |
 |---|---|---|---|
@@ -74,7 +92,11 @@ A good caser does not say "wrong." They find where it went wrong. The director c
 | Assumption | Unstated or unrealistic assumption | "What are you assuming about market share there?" |
 | Communication | Calculated silently, or no "so what" | "And what does that mean for the client?" |
 
-Numeric checks are done **by code, not by the model**: the case pack stores each expected value with a unit and a tolerance, and the director extracts the candidate's number and compares. The model decides how to probe. Code decides whether it was right.
+Numeric checks are done **by code, not by the model**: the case pack stores each expected value with a unit and a tolerance wide enough for sensible rounding, and code compares. Whether the *method* was right is judged by the director (or, without a model, by whether the candidate's working uses the method's inputs). A right method with a slip is acknowledged and the case moves on.
+
+## 5b. Guards the engine enforces whatever the model says
+
+Found by live error analysis ([evals/FINDINGS.md](../evals/FINDINGS.md)): a weak structure is taken on the second try; a sigh is not a request for time; attempts to get the answer or future exhibits are deflected; facts go only to questions; the actor never sees the director's free text; any sentence that makes a claim about an unshown exhibit is not spoken; exhibits are re-shown only on request.
 
 ## 6. Scoring
 

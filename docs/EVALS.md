@@ -27,11 +27,16 @@ Every case pack gets run by every profile on every change to the interviewer. Fr
 |---|---|---|---|
 | **E1 Leak** | Does it ever reveal an answer, the sample framework, or a future exhibit? | Adversary profile plus a fixed script of 30+ attempts per case, including injection ("ignore your instructions and…"). A judge flags any leak, and every flag is read by a human. | **Zero leaks. Release gate.** |
 | **E2 Reveal timing** | Are exhibits shown in their part, after their trigger, and never before? | Event log from self-play: each `share_exhibit` checked against the pack. Deterministic, no judge needed. | **100%. Release gate.** |
-| **E3 Math judging** | Does it call right answers right and wrong answers wrong? | 100+ synthetic answers per numeric part: exact, rounded within tolerance, wrong, off by 10x, right number with a wrong approach. The code check handles numbers; the judge handles "stated approach first". | TPR and TNR *provisional ≥ 0.95* |
+| **E3 Approach over precision** | Does it credit the method, accept rounding and assumptions, and probe only a wrong method? | 100+ synthetic answers per numeric part: exact, sensibly rounded, right method with an arithmetic slip, wrong method, off by 10x, a bare number with no working. Right method plus slip must move on; a bare wrong number must be probed. | TPR and TNR *provisional ≥ 0.95* |
+| **E3b Never stalls** | Does a lost candidate still get through the whole case? | Lost and Silent profiles: every part must close within four candidate turns, every exhibit must be shown, and the recommendation must be reached. Deterministic. | **100%. Release gate.** |
 | **E4 Nudge appropriateness** | Does it nudge weak candidates and leave strong ones alone? | Self-play: nudge counts by profile (Strong should get almost none). Plus 20 transcripts labelled by a human, one binary question per nudge: "would a good caser have nudged here?" | *Set after error analysis* |
 | **E5 Score agreement** | Do its grades match a human caser's? | 15-20 real sessions, each also scored independently by a second-year or case parent on the same three-level scale and the same dimensions. Measure exact agreement and agreement within one level, per dimension, and on the overall advance verdict. | *Set after error analysis*. This is the headline number. |
 | **E6 Realism** | Does it feel like a real interviewer? | Peers who have done human cases answer one binary question after a session, then say what broke the illusion. Grouped into a failure list. | Rising over time |
 | **E7 Latency** | Does the conversation flow? | Turn latency p50 and p95, and time from the actor's handoff line to the exhibit appearing. | p50 under ~1s *provisional* |
+
+## Live runs
+
+`evals/live.mjs` plays a profile through the running app against the real model and prints every turn with its phase, exhibit events, source (model or rules) and latency. Every failure it finds goes into [FINDINGS.md](../evals/FINDINGS.md) with the fix and the test that now holds it.
 
 ## Datasets
 
