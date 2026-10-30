@@ -1,6 +1,6 @@
 import type { Director } from "./decision";
 import { Decision } from "./decision";
-import { candidateTurnsInPart, currentPart, matchFacts, matchesAny, nudgeLevelSoFar } from "./policy";
+import { candidateTurnsInPart, currentPart, GRAB, matchFacts, matchesAny, nudgeLevelSoFar, TIME_ASK } from "./policy";
 
 // A director that needs no model. It runs when there is no API key, when the
 // model fails, and in tests. Cruder than the model, never leakier.
@@ -40,7 +40,7 @@ export const ruleDirector: Director = async ({ pack, state, text, numeric }) => 
   // A future exhibit or the answer is never available. Exhibit names the
   // candidate has already seen are fine, so check against what is shown.
   const grab = ANSWER_GRABS.find((g) => lower.includes(g));
-  if (grab && !(grab.startsWith("exhibit") && state.shownExhibits.some((e) => grab.endsWith(e.toLowerCase())))) {
+  if (GRAB.test(text) || (grab && !(grab.startsWith("exhibit") && state.shownExhibits.some((e) => grab.endsWith(e.toLowerCase()))))) {
     d.deflect = true;
     return d;
   }
@@ -57,7 +57,7 @@ export const ruleDirector: Director = async ({ pack, state, text, numeric }) => 
 
   switch (state.phase) {
     case "clarifying": {
-      if (matchesAny(lower, TIME_ASKS)) d.wantsTimeToStructure = true;
+      if (matchesAny(lower, TIME_ASKS) || TIME_ASK.test(text)) d.wantsTimeToStructure = true;
       else if (words(text) > 45 && STRUCTURE_MARKERS.filter((m) => lower.includes(m)).length >= 2) {
         d.gaveStructure = true;
         d.revealFactIds = [];

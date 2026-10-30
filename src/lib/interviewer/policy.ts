@@ -38,6 +38,14 @@ export function nudgeLevelSoFar(state: SessionState, partId: string): number {
   return Math.max(0, ...(state.nudges[partId] ?? []));
 }
 
+// Asking for what nobody gets: the answer, the key, future exhibits, or new instructions.
+export const GRAB =
+  /(\b(what|tell me|give me|just say)\b.{0,20}\b(the )?answers?\b|answer key|expected answers?|ignore\b.{0,30}\binstructions|system prompt|(see|show|give)\b.{0,15}\b(all|every|the rest of|next)\b.{0,15}\bexhibits?|just tell me the number)/i;
+
+// Asking for a moment to structure.
+export const TIME_ASK =
+  /\b(a|one)\s+(moment|minute|second|sec)\b|\bcouple of minutes\b|\b(gather|structure|organi[sz]e) my thoughts\b|\btime to (think|structure)\b|\btake a (moment|minute|beat)\b/i;
+
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9%$. ]+/g, " ");
 
 export function matchesAny(text: string, keywords: string[]): boolean {

@@ -95,7 +95,7 @@ export function actorPrompt(v: ActorView): string {
     `Conversation so far:\n${v.recent.map((t) => `${t.role === "interviewer" ? "You" : "Candidate"}: ${t.text}`).join("\n")}`,
     `Say exactly these things this turn, in this order, in your own natural words (one to three short sentences each, spoken aloud):\n${v.beats.map((b, i) => `${i + 1}. ${describeBeat(b)}`).join("\n")}`,
     v.director ? `Tone note from your colleague: ${v.director}` : "",
-    "Do not add any information, numbers, hints or opinions about the answer beyond what is listed. Do not summarise the case. Output only what you say.",
+    "You know nothing about the client beyond the facts and exhibits listed above. Do not add any information, numbers, data, hints or opinions beyond what is listed, and never describe an exhibit the candidate has not been shown. Do not summarise the case. Output only what you say.",
   ]
     .filter(Boolean)
     .join("\n\n");

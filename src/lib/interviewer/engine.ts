@@ -2,7 +2,7 @@ import type { CasePack, Exhibit } from "../case/schema";
 import { Decision, type Director } from "./decision";
 import { actorView, templateLine, type ActorView, type Beat } from "./actor";
 import { approachFromSteps, judgeNumbers, type NumericVerdict } from "./numeric";
-import { canShowExhibit, candidateTurnsInPart, currentPart, factById, filterFactIds, matchesAny } from "./policy";
+import { canShowExhibit, candidateTurnsInPart, currentPart, factById, filterFactIds, GRAB, matchesAny, matchFacts, TIME_ASK } from "./policy";
 import type { Part } from "../case/schema";
 import { leaks, unearnedSecrets } from "./secrets";
 import { ruleDirector } from "./ruleDirector";
@@ -63,6 +63,16 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
   }
   if (engine.director === ruleDirector) source = "rules";
 
+  // Guards that hold whatever the director proposes. A model can misread a
+  // turn; the case still has to behave like a real one.
+  if (GRAB.test(text)) decision.deflect = true;
+  if (decision.wantsTimeToStructure && !TIME_ASK.test(text)) decision.wantsTimeToStructure = false;
+  if (state.phase === "structuring") {
+    const tries = state.transcript.filter((x) => x.role === "candidate" && x.phase === "structuring").length;
+    const words = text.trim().split(/\s+/).length;
+    if (tries >= 2 && words >= 3) decision.gaveStructure = true; // take a weak structure; the score reflects it
+  }
+
   const beats: Beat[] = [];
   const events: TurnEvent[] = [];
   let allowPart: string | undefined;
@@ -118,7 +128,11 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
   } else if (decision.deflect) {
     beats.push({ kind: "deflect" });
   } else {
-    for (const id of filterFactIds(pack, state, decision.revealFactIds)) {
+    const asked = QUESTION.test(text.trim()) || /\?/.test(text);
+    const proposed = asked ? filterFactIds(pack, state, decision.revealFactIds) : [];
+    const matched = new Set(matchFacts(pack, state, text).map((f) => f.id));
+    const toReveal = [...proposed.filter((id) => matched.has(id)), ...proposed.filter((id) => !matched.has(id))].slice(0, 2);
+    for (const id of toReveal) {
       const fact = factById(pack, id);
       if (!fact) continue;
       beats.push({ kind: "fact", text: fact.answer });
@@ -171,7 +185,7 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
           if (!sharedFact) beats.push({ kind: "ack" });
           break;
         }
-        if (decision.showExhibit && state.shownExhibits.includes(decision.showExhibit)) show(decision.showExhibit);
+        if (decision.showExhibit && state.shownExhibits.includes(decision.showExhibit) && /\b(again|back|see (it|that|exhibit)|show (me )?(it|that|exhibit))\b/i.test(text)) show(decision.showExhibit);
 
         // Math: approach first. A right method with a slip in the arithmetic is
         // acknowledged and the case moves on, the way a real caser does it.
@@ -238,12 +252,14 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
   // Speak. Anything a model wrote is checked for unearned answers first; the
   // template line is safe by construction.
   const secrets = unearnedSecrets(pack, state, allowPart);
-  const director = leaks(decision.stageDirection, secrets) ? "" : decision.stageDirection;
+  // The director's free text never reaches the actor: on 2026-10-29 it carried
+  // exhibit data ("rent is flat") into speech before the exhibit was shown.
+  const director = "";
   const fallback = templateLine(beats, state.transcript.length);
   let speech = fallback;
   if (engine.actor) {
     try {
-      const said = (await engine.actor(actorView(pack, state, beats, director))).trim();
+      const said = (await engine.actor(actorView(pack, state, beats, director))).replace(/\s*\n+\s*/g, " ").trim();
       if (said && !leaks(said, secrets)) speech = said;
     } catch {
       /* the template line stands */
