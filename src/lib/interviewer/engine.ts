@@ -134,7 +134,9 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
     const asked = QUESTION.test(text.trim()) || /\?/.test(text);
     const matched = asked ? matchFacts(pack, state, text).map((f) => f.id) : [];
     const fresh = matched.filter((id) => !state.revealedFacts.includes(id));
-    const toReveal = filterFactIds(pack, state, fresh.length ? fresh : matched).slice(0, 2);
+    // Repeat an answer only when asked to; otherwise a matched-but-known fact is skipped.
+    const wantsAgain = /\b(again|repeat|remind me)\b/i.test(text);
+    const toReveal = filterFactIds(pack, state, fresh.length ? fresh : wantsAgain ? matched : []).slice(0, 2);
     for (const id of toReveal) {
       const fact = factById(pack, id);
       if (!fact) continue;

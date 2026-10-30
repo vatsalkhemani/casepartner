@@ -74,11 +74,13 @@ export function Room({ caseId, format, mode, title: givenTitle, uploaded }: Prop
   }, [notes, notesKey]);
 
   const applyEvents = (events: TurnEvent[]) => {
+    let placed = false; // two exhibits in one turn: the first goes on the table, both go to the tray
     for (const e of events) {
       if (e.type === "show_exhibit") {
         const local = packRef.current?.exhibits.find((x) => x.id === e.exhibit.id);
         const exhibit = local?.image ? { ...e.exhibit, image: local.image } : e.exhibit;
-        setActive(exhibit);
+        if (!placed) setActive(exhibit);
+        placed = true;
         setSeen((s) => (s.some((x) => x.id === exhibit.id) ? s : [...s, exhibit]));
       }
     }

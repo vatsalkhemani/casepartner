@@ -18,12 +18,17 @@ function sentences(text: string): string[] {
 
 // Front matter is where clubs put their terms; look at the first pages.
 export function detectNotice(pages: string[], frontPages = 8): Notice {
-  const front = pages.slice(0, frontPages);
-  const all = sentences(front.join(" "));
-  for (let i = 0; i < all.length; i++) {
-    const window = all.slice(i, i + 2).join(" ");
-    if (AI_WORDS.test(window) && FORBID.test(window)) return { kind: "blocked", quote: window.slice(0, 400) };
+  const front = pages.slice(0, frontPages).join(" ").replace(/\s+/g, " ");
+  // PDF text often has no sentence breaks, so look at the text around each AI mention.
+  for (const m of front.matchAll(new RegExp(AI_WORDS.source, "gi"))) {
+    const at = m.index ?? 0;
+    const around = front.slice(Math.max(0, at - 260), at + 120);
+    if (FORBID.test(around)) {
+      const from = around.search(/(note|these materials|this (case)?book|all materials|the materials|proprietary)/i);
+      return { kind: "blocked", quote: around.slice(Math.max(0, from)).trim() };
+    }
   }
+  const all = sentences(front);
   for (const s of all) if (COPYRIGHT.test(s)) return { kind: "copyright", quote: s.slice(0, 240) };
   return { kind: "none" };
 }

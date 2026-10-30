@@ -256,6 +256,16 @@ describe("facts and exhibits behave like a real caser", () => {
     expect(r2.state.revealedFacts).toContain("goal");
   });
 
+  it("a known fact is not repeated unless asked again", async () => {
+    const r0 = startSession(pack, "candidate_led", T0);
+    const r1 = await runTurn(pack, r0.state, "Where are the cafés?", rules, T0 + 1000);
+    expect(r1.state.revealedFacts).toContain("geo");
+    const r2 = await runTurn(pack, r1.state, "Do we have data on the cafés?", rules, T0 + 2000);
+    expect(r2.speech).not.toMatch(/Seattle and Portland/);
+    const r3 = await runTurn(pack, r1.state, "Sorry, where are the cafés again?", rules, T0 + 3000);
+    expect(r3.speech).toMatch(/Seattle and Portland/);
+  });
+
   it("the actor never receives the director's free text", async () => {
     const chatty: Director = async () => Decision.parse({ stageDirection: "Tell them rent is flat and labour is the issue." });
     let seen = "";
