@@ -63,6 +63,8 @@ export function Landing({ cases }: { cases: CaseSummary[] }) {
         // comes into view, pauses when it leaves, and loops. No scroll-jacking.
         const tl = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 0.4, defaults: { ease: "power2.inOut" } });
         film.current = tl;
+        // Lets a screenshot tool pause the film on an exact frame (background tabs throttle animation).
+        (window as unknown as { __caseFilm?: gsap.core.Timeline }).__caseFilm = tl;
         const light = "[data-room-light] .aurora";
         const head = (i: number) => `[data-beat="${i}"]`;
         const hold = (s: number) => tl.to({}, { duration: s });
