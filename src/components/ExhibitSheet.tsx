@@ -33,26 +33,34 @@ export function ExhibitSheet({ exhibit, onClose }: { exhibit: Exhibit; onClose?:
         )}
       </div>
       <h3 className="mt-1 font-serif text-[1.75rem] leading-tight">{exhibit.title}</h3>
-      {table.unit && <p className="mt-1 text-sm text-paper-ink-2">{table.unit}</p>}
-      <div className="mt-5 overflow-x-auto">
-        <table className="text-[15px]">
-          <thead>
-            <tr>{table.columns.map((c, i) => <th key={c} className={i ? "text-right" : ""}>{c}</th>)}</tr>
-          </thead>
-          <tbody>
-            {table.rows.map((r) => (
-              <tr key={String(r[0])}>
-                {r.map((cell, i) => (
-                  <td key={i} className={i ? "text-right" : ""}>
-                    {typeof cell === "number" && table.unit?.includes("$") ? cell.toFixed(1) : cell}
-                  </td>
+      {exhibit.image ? (
+        // An uploaded casebook's exhibit is shown as the page itself: charts stay charts.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={exhibit.image} alt={`${exhibit.label}: ${exhibit.title}`} className="mt-5 max-h-[60vh] w-full rounded-[2px] object-contain" />
+      ) : table ? (
+        <>
+          {table.unit && <p className="mt-1 text-sm text-paper-ink-2">{table.unit}</p>}
+          <div className="mt-5 overflow-x-auto">
+            <table className="text-[15px]">
+              <thead>
+                <tr>{table.columns.map((c, i) => <th key={c} className={i ? "text-right" : ""}>{c}</th>)}</tr>
+              </thead>
+              <tbody>
+                {table.rows.map((r) => (
+                  <tr key={String(r[0])}>
+                    {r.map((cell, i) => (
+                      <td key={i} className={i ? "text-right" : ""}>
+                        {typeof cell === "number" && table.unit?.includes("$") ? cell.toFixed(1) : cell}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {table.note && <p className="mt-4 text-[15px] text-paper-ink-2">{table.note}</p>}
+              </tbody>
+            </table>
+          </div>
+          {table.note && <p className="mt-4 text-[15px] text-paper-ink-2">{table.note}</p>}
+        </>
+      ) : null}
       {exhibit.source && <p className="mt-6 font-serif text-sm italic text-paper-ink-2">Source: {exhibit.source}</p>}
     </div>
   );

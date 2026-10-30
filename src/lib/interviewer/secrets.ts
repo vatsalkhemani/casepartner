@@ -33,12 +33,12 @@ export function unshownTopics(pack: CasePack, state: SessionState): string[] {
   const known = [
     pack.prompt.readAloud,
     ...state.revealedFacts.map((id) => [...pack.clarifyingFacts, ...pack.parts.flatMap((p) => p.facts)].find((f) => f.id === id)?.answer ?? ""),
-    ...pack.exhibits.filter((e) => state.shownExhibits.includes(e.id)).flatMap((e) => e.table.rows.map((r) => String(r[0]))),
+    ...pack.exhibits.filter((e) => state.shownExhibits.includes(e.id)).flatMap((e) => [e.title, ...(e.table?.rows.map((r) => String(r[0])) ?? [])]),
   ].join(" ").toLowerCase();
   const topics = new Set<string>();
   for (const ex of pack.exhibits) {
     if (state.shownExhibits.includes(ex.id)) continue;
-    for (const row of ex.table.rows) {
+    for (const row of ex.table?.rows ?? [[ex.title]]) {
       const words = String(row[0]).toLowerCase().match(/[a-z]{4,}/g) ?? [];
       words.filter((w) => !STOPWORDS.has(w)).map((w) => w.replace(/s$/, "")).filter((w) => !known.includes(w)).forEach((w) => topics.add(w));
     }

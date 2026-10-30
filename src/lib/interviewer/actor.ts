@@ -84,7 +84,7 @@ export function templateLine(beats: Beat[], seed = 0): string {
 
 export function actorPrompt(v: ActorView): string {
   const exhibits = v.shownExhibits
-    .map((e) => `${e.label}: ${e.title}\n${e.table.columns.join(" | ")}\n${e.table.rows.map((r) => r.join(" | ")).join("\n")}${e.table.note ? `\n${e.table.note}` : ""}`)
+    .map((e) => (e.table ? `${e.label}: ${e.title}\n${e.table.columns.join(" | ")}\n${e.table.rows.map((r) => r.join(" | ")).join("\n")}${e.table.note ? `\n${e.table.note}` : ""}` : `${e.label}: ${e.title} (a chart)`))
     .join("\n\n");
   return [
     v.persona,

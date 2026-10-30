@@ -16,7 +16,11 @@ export const Exhibit = z.object({
   id: z.string(),
   label: z.string(), // "Exhibit A"
   title: z.string(),
-  table: Table,
+  // Casebook exhibits are often charts: the table is what the model could read
+  // off it, the page image is the exhibit itself. Either or both.
+  table: Table.optional(),
+  page: z.number().int().optional(), // page in the uploaded PDF
+  image: z.string().optional(), // data URL, kept in the browser only
   source: z.string().optional(),
 });
 export type Exhibit = z.infer<typeof Exhibit>;

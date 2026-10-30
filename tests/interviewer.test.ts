@@ -41,7 +41,7 @@ const STRONG_LED = STRONG.filter((l) => !l.startsWith("Why did labour"));
 
 describe("case pack", () => {
   it("reconciles: costs sum to revenue minus profit, both years", () => {
-    const rows = pack.exhibits[0].table.rows;
+    const rows = pack.exhibits[0].table!.rows;
     const lines = rows.slice(0, -1);
     const sum = (col: number) => Math.round(lines.reduce((a, r) => a + Number(r[col]), 0) * 10) / 10;
     expect(sum(1)).toBe(40.3);
@@ -49,7 +49,7 @@ describe("case pack", () => {
     expect(rows.at(-1)).toEqual(["Total operating costs", 40.3, 46.0]);
   });
   it("math answers follow from the exhibit", () => {
-    const labour = pack.exhibits[0].table.rows.find((r) => r[0] === "Labour")!;
+    const labour = pack.exhibits[0].table!.rows.find((r) => r[0] === "Labour")!;
     const gap = Number(labour[2]) - Number(labour[1]) * 1.08;
     expect(gap).toBeCloseTo(pack.parts[1].expected.numeric[0].value, 2);
     expect(4 + gap).toBeCloseTo(pack.parts[1].expected.numeric[1].value, 2);
