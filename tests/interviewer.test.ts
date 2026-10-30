@@ -123,7 +123,7 @@ describe("E1 leak", () => {
   it("the actor's view never contains the answer key, at any point in a full case", async () => {
     const log = await play(STRONG);
     const views: ActorView[] = [];
-    const spy: Engine = { director: ruleDirector, actor: async (v) => (views.push(v), "Okay.") };
+    const spy: Engine = { director: ruleDirector, actor: async (v) => (views.push(v), "Okay."), phraseAll: true };
     let r = startSession(pack, "candidate_led", T0);
     for (const [i, line] of STRONG.entries()) r = await runTurn(pack, r.state, line, spy, T0 + (i + 1) * 30_000);
     expect(views.length).toBe(STRONG.length);
@@ -270,19 +270,19 @@ describe("facts and exhibits behave like a real caser", () => {
     const chatty: Director = async () => Decision.parse({ stageDirection: "Tell them rent is flat and labour is the issue." });
     let seen = "";
     const r0 = startSession(pack, "candidate_led", T0);
-    await runTurn(pack, r0.state, "What's the goal?", { director: chatty, actor: async (v) => ((seen = actorPrompt(v)), "Okay.") }, T0 + 1000);
+    await runTurn(pack, r0.state, "What's the goal?", { director: chatty, actor: async (v) => ((seen = actorPrompt(v)), "Okay."), phraseAll: true }, T0 + 1000);
     expect(seen).not.toMatch(/rent is flat/i);
   });
 
   it("a guessed claim about an unshown exhibit is never spoken", async () => {
     const r0 = startSession(pack, "candidate_led", T0);
-    const r1 = await runTurn(pack, r0.state, "Is it rent?", { director: async () => Decision.parse({}), actor: async () => "Rent has remained flat over the last two years." }, T0 + 1000);
+    const r1 = await runTurn(pack, r0.state, "Is it rent?", { director: async () => Decision.parse({}), actor: async () => "Rent has remained flat over the last two years.", phraseAll: true }, T0 + 1000);
     expect(r1.speech).not.toMatch(/flat/i);
   });
 
   it("the same claim is fine once the exhibit is on the table", async () => {
     const log = await play(STRONG.slice(0, 5)); // Exhibit A is on the table
-    const r = await runTurn(pack, log.at(-1)!.state, "Is rent a driver?", { director: async () => Decision.parse({}), actor: async () => "Rent is roughly flat, as you can see." }, T0 + 999_000);
+    const r = await runTurn(pack, log.at(-1)!.state, "Is rent a driver?", { director: async () => Decision.parse({}), actor: async () => "Rent is roughly flat, as you can see.", phraseAll: true }, T0 + 999_000);
     expect(r.speech).toMatch(/flat/i);
   });
 
@@ -354,6 +354,19 @@ describe("adapting inside the case", () => {
     const r1 = await runTurn(pack, r0.state, "Can I take a moment?", rules, T0 + 1000);
     const r2 = await runTurn(pack, r1.state, "I'm stuck, not sure where to start.", rules, T0 + 2000);
     expect(r2.speech).toMatch(/what drives the answer/i);
+  });
+});
+
+describe("model calls only where they add something", () => {
+  it("a plain turn uses the casebook's words; a term question goes to the model", async () => {
+    let calls = 0;
+    const engine: Engine = { director: ruleDirector, actor: async () => (calls++, "A margin is the share of revenue left after costs.") };
+    const r0 = startSession(pack, "candidate_led", T0);
+    const r1 = await runTurn(pack, r0.state, "What's the goal?", engine, T0 + 1000);
+    expect(calls).toBe(0);
+    expect(r1.speech).toMatch(/6 million dollars within two years/);
+    await runTurn(pack, r1.state, "Sorry, what does operating margin mean?", engine, T0 + 2000);
+    expect(calls).toBe(1);
   });
 });
 

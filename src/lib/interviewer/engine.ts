@@ -9,7 +9,13 @@ import { ruleDirector } from "./ruleDirector";
 import { newSession, type SessionState } from "./session";
 
 export type Actor = (view: ActorView) => Promise<string>;
-export type Engine = { director: Director; actor?: Actor };
+// phraseAll: send every turn to the actor model (tests use it to inspect what the actor sees).
+export type Engine = { director: Director; actor?: Actor; phraseAll?: boolean };
+
+// Beats that need real language from a model. Everything else (acknowledgements,
+// the casebook's own questions, hints and facts, exhibit handoffs) reads well as
+// written, and skipping the model there halves the calls and the wait per turn.
+const NEEDS_MODEL = new Set<Beat["kind"]>(["answer_visible", "explain_term"]);
 
 export type TurnEvent =
   | { type: "show_exhibit"; exhibit: Exhibit }
@@ -297,7 +303,7 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
   const director = "";
   const fallback = templateLine(beats, state.transcript.length);
   let speech = fallback;
-  if (engine.actor) {
+  if (engine.actor && (engine.phraseAll || beats.some((b) => NEEDS_MODEL.has(b.kind)))) {
     try {
       const said = (await engine.actor(actorView(pack, state, beats, director))).replace(/\s*\n+\s*/g, " ").trim();
       if (said && !leaks(said, secrets) && !claimsAboutUnshown(said, unshownTopics(pack, state))) speech = said;

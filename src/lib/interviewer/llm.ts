@@ -35,7 +35,9 @@ function directorPrompt({ pack, state, text, numeric }: DirectorInput): string {
 }
 
 export const modelDirector: Director = async (input) => {
-  const raw = await generate(directorPrompt(input), {
+  const t0 = Date.now();
+  const prompt = directorPrompt(input);
+  const raw = await generate(prompt, {
     system: "You are the hidden director of a consulting case interview. You judge the candidate's last turn and decide what the interviewer may reveal. You never write dialogue.",
     role: "director",
     json: true,
@@ -43,8 +45,19 @@ export const modelDirector: Director = async (input) => {
     maxTokens: 1200,
     timeoutMs: 8000,
   });
-  const parsed = Decision.safeParse(JSON.parse(raw));
-  if (!parsed.success) throw new Error("director returned an invalid decision");
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    console.warn(`[director] not JSON after ${Date.now() - t0}ms (${prompt.length} chars in): ${raw.slice(0, 120)}`);
+    throw new Error("director returned invalid JSON");
+  }
+  const parsed = Decision.safeParse(json);
+  if (!parsed.success) {
+    console.warn(`[director] decision did not fit after ${Date.now() - t0}ms: ${parsed.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+    throw new Error("director returned an invalid decision");
+  }
+  if (Date.now() - t0 > 4000) console.warn(`[director] slow: ${Date.now() - t0}ms, ${prompt.length} chars in`);
   return parsed.data;
 };
 
