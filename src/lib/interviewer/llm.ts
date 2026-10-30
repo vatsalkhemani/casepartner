@@ -43,7 +43,7 @@ export const modelDirector: Director = async (input) => {
     json: true,
     temperature: 0.1,
     maxTokens: 1200,
-    timeoutMs: 8000,
+    timeoutMs: 5000, // fail over quickly: a stalled call should not hold the room
   });
   let json: unknown;
   try {

@@ -17,17 +17,20 @@ export const DIMENSIONS = [
 export const Level = z.enum(["not_yet", "good_enough", "standout"]);
 export type Level = z.infer<typeof Level>;
 
+// Models write "Good enough" or "good-enough"; accept them.
+const LooseLevel = z.preprocess((v) => String(v ?? "").toLowerCase().trim().replace(/[\s-]+/g, "_").replace(/^not$/, "not_yet"), Level);
+
 const JudgedDimension = z.object({
   id: z.string(),
-  level: Level,
+  level: LooseLevel,
   evidence: z.array(z.string()).max(3).default([]),
-  note: z.string().max(400),
+  note: z.string().max(1200).default(""),
 });
 
 const Judged = z.object({
   dimensions: z.array(JudgedDimension),
-  moments: z.array(z.object({ quote: z.string(), title: z.string().max(80), better: z.string().max(300) })).max(3).default([]),
-  drills: z.array(z.string().max(160)).max(3).default([]),
+  moments: z.array(z.object({ quote: z.string(), title: z.string().max(200), better: z.string().max(800) })).max(5).default([]),
+  drills: z.array(z.string().max(400)).max(5).default([]),
 });
 
 export type Debrief = {
@@ -155,6 +158,8 @@ export async function makeDebrief(pack: CasePack, state: SessionState): Promise<
     if (!hasGemini()) throw new Error("no model");
     const raw = await generate(judgePrompt(pack, state, signals), { role: "judge", json: true, temperature: 0.2, maxTokens: 8000, timeoutMs: 45_000 });
     judged = Judged.parse(JSON.parse(raw));
+    judged.moments = judged.moments.slice(0, 3);
+    judged.drills = judged.drills.slice(0, 3);
   } catch (e) {
     console.warn(`[debrief] model judge failed, using rules: ${e instanceof Error ? e.message.slice(0, 200) : e}`);
     judged = ruleJudge(pack, state, signals);

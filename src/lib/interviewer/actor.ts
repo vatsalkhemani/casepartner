@@ -79,7 +79,7 @@ export function templateLine(beats: Beat[], seed = 0): string {
       case "accept_assumption": out.push("That's a fair assumption. Go with it."); break;
       case "on_track": out.push("You're heading the right way. Keep going."); break;
       case "so_what": out.push(`And what does that mean for ${b.client}?`); break;
-      case "answer_visible": out.push("It's in what we've covered so far. Take another look at the numbers in front of you."); break;
+      case "answer_visible": out.push("Take another look at what's in front of you. If it's not there, make an assumption and tell me what it is."); break;
       case "explain_term": out.push(`Sure. ${b.term} is a standard business term; use the usual definition and tell me if you want me to say more.`); break;
       case "steer": out.push("Sure, we can come back to that. Before we do, the team just sent something over."); break;
       case "handoff": out.push(`Here's ${b.label}.`); break;

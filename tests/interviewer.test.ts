@@ -373,6 +373,22 @@ describe("following the candidate's lead", () => {
   });
 });
 
+describe("conclusions and questions", () => {
+  it("committing to an answer closes the part, whatever the director says", async () => {
+    const state = (await play(STRONG.slice(0, 5))).at(-1)!.state;
+    const r = await runTurn(pack, state, "I'd prioritise fixing labour, it's the biggest driver.", { director: async () => Decision.parse({ nudgeLevel: 1 }) }, T0 + 999_000);
+    expect(r.state.partIndex).toBe(1);
+  });
+
+  it("an unmatched question is answered from what's on the table, not with 'okay'", async () => {
+    const state = (await play(STRONG.slice(0, 5))).at(-1)!.state;
+    let seen = "";
+    const r = await runTurn(pack, state, "Is the total including waste?", { director: async () => Decision.parse({}), actor: async (v) => ((seen = actorPrompt(v)), "Yes, it includes the waste line.") }, T0 + 999_000);
+    expect(seen).toMatch(/ONLY the facts already shared/);
+    expect(r.speech).toMatch(/includes the waste/);
+  });
+});
+
 describe("model calls only where they add something", () => {
   it("a plain turn uses the casebook's words; a term question goes to the model", async () => {
     let calls = 0;

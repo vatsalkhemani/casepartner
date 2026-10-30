@@ -35,6 +35,9 @@ function nextRung(part: Part, given: number[]): number {
   return given.length >= seq.length ? 4 : seq[given.length];
 }
 
+// The candidate commits to an answer. A caser moves on; the debrief judges the reasoning.
+const CONCLUDES = /\b(i'?d (prioriti[sz]e|recommend|go with|choose|pick|enter|select)|i (recommend|would recommend|would go with|would choose|would pick)|my (answer|recommendation|pick) is|so the answer is|(drop|eliminate|rule out) [a-z]+)\b/i;
+
 const QUESTION = /\?|^(what|how|why|do|does|did|is|are|can|could|would|should|where|when|who|any)\b/i;
 
 export function startSession(pack: CasePack, format: SessionState["format"], now = Date.now()): TurnResult {
@@ -257,7 +260,7 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
         }
 
         if (HINT_ASK.test(text) && !decision.nudgeLevel) decision.nudgeLevel = 1;
-        const answered = decision.partComplete || decision.answeredQuestion;
+        const answered = decision.partComplete || decision.answeredQuestion || ((part.kind === "exhibit" || part.kind === "qualitative") && CONCLUDES.test(text));
         // Findings with no "so what": ask once before moving on, as a caser would.
         if (answered && decision.soWhatMissing && !state.soWhatAsked.includes(part.id) && part.kind !== "brainstorm" && !mathDone) {
           state.soWhatAsked.push(part.id);
@@ -286,7 +289,11 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
             allowPart = part.id;
             enterPart(state.partIndex + 1);
           }
-        } else if (!sharedFact) beats.push(decision.acceptsAssumption || ASSUMES.test(text) ? { kind: "accept_assumption" } : { kind: "ack" });
+        } else if (!sharedFact) {
+          if (decision.acceptsAssumption || ASSUMES.test(text)) beats.push({ kind: "accept_assumption" });
+          else if (QUESTION.test(text.trim()) || text.includes("?")) beats.push({ kind: "answer_visible" }); // answered from what's on the table, or "I don't have that"
+          else beats.push({ kind: "ack" });
+        }
         break;
       }
 
