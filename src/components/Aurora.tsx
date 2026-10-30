@@ -46,13 +46,14 @@ export function Aurora({ presence, level, pulse, className = "" }: { presence: P
   useGSAP(
     () => {
       if (!pulse) return;
-      gsap.fromTo(root.current, { "--energy": Math.min(1, base + 0.3) }, { "--energy": base, duration: 0.45, ease: "power2.out", overwrite: "auto" });
+      // a gentle swell, not a flash: words come several times a second
+      gsap.to(root.current, { "--energy": Math.min(1, base + 0.12), duration: 0.25, ease: "sine.out", yoyo: true, repeat: 1, overwrite: "auto" });
     },
     { dependencies: [pulse], scope: root },
   );
 
   return (
-    <div ref={root} className={`aurora ${presence === "thinking" ? "animate-pulse" : ""} ${className}`} aria-hidden>
+    <div ref={root} className={`aurora ${className}`} aria-hidden>
       <i />
       <i />
       <i />

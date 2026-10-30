@@ -12,7 +12,10 @@
   --ink-3: #8a8174;
   --lamp: #f0a95b;
   --lamp-2: #d9733f;
-  --lamp-3: #7a4cc2;
+  --lamp-3: #5b3fb8;
+  --ember: #e2603f;
+  --rose: #c4507e;
+  --indigo: #2b2470;
   --paper: #f5f0e6;
   --paper-2: #ebe4d6;
   --paper-ink: #1e1b17;
@@ -60,9 +63,9 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   opacity: calc(0.45 + var(--energy) * 0.55);
   will-change: transform, opacity;
 }
-.aurora > i:nth-child(1) { background: radial-gradient(circle at 40% 40%, var(--lamp) 0%, transparent 62%); }
-.aurora > i:nth-child(2) { background: radial-gradient(circle at 62% 58%, var(--lamp-2) 0%, transparent 58%); }
-.aurora > i:nth-child(3) { background: radial-gradient(circle at 50% 70%, var(--lamp-3) 0%, transparent 55%); opacity: calc(0.25 + var(--energy) * 0.35); }
+.aurora > i:nth-child(1) { background: radial-gradient(circle at 42% 42%, var(--lamp) 0%, color-mix(in oklab, var(--lamp) 40%, transparent) 30%, transparent 62%); }
+.aurora > i:nth-child(2) { background: radial-gradient(circle at 64% 56%, var(--ember) 0%, color-mix(in oklab, var(--rose) 55%, transparent) 34%, transparent 64%); }
+.aurora > i:nth-child(3) { background: radial-gradient(circle at 46% 74%, var(--indigo) 0%, color-mix(in oklab, var(--lamp-3) 45%, transparent) 30%, transparent 62%); opacity: calc(0.55 + var(--energy) * 0.35); mix-blend-mode: normal; }
 .aurora > b {
   position: absolute;
   inset: 34%;
@@ -84,6 +87,30 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 .sheet tr > * { padding: 0.55rem 0.75rem; }
 .sheet tbody tr:nth-child(odd) { background: var(--paper-2); }
 .sheet tbody tr:last-child { font-weight: 600; }
+
+/* Film grain over everything: keeps big gradients from banding and gives the
+   dark ground some texture. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The room: a lamp over the table, a warm pool fading to ink. */
+.lamp-pool {
+  background:
+    radial-gradient(60% 55% at 50% -5%, color-mix(in oklab, var(--lamp) 26%, transparent) 0%, transparent 70%),
+    radial-gradient(45% 40% at 85% 100%, color-mix(in oklab, var(--indigo) 55%, transparent) 0%, transparent 70%),
+    radial-gradient(40% 35% at 8% 90%, color-mix(in oklab, var(--rose) 18%, transparent) 0%, transparent 70%),
+    var(--ground-2);
+}
+
+/* The verdict gets a bloom in its own colour. */
+.bloom-good { background: radial-gradient(closest-side, color-mix(in oklab, var(--good) 30%, transparent), transparent); }
 
 @media (prefers-reduced-motion: reduce) {
   .aurora > i, .aurora > b { transition: none !important; animation: none !important; }
