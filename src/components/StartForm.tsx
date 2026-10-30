@@ -76,7 +76,10 @@ export function StartForm({ cases }: { cases: CaseSummary[] }) {
       <button type="submit" className="mt-8 w-full rounded-full bg-lamp px-6 py-4 text-lg font-semibold text-ground transition-transform hover:scale-[1.01] active:scale-[0.99]">
         Start the case
       </button>
-      <p className="mt-3 text-center text-sm text-ink-3">Pen and paper help. No calculator, like the real thing.</p>
+      <a href="/upload" className="mt-4 block rounded-xl bg-ground-3 p-4 text-center transition-colors hover:bg-ground">
+        <span className="block font-medium">Or case from your own casebook</span>
+        <span className="text-sm text-ink-3">Upload the PDF and pick the case</span>
+      </a>
     </form>
   );
 }

@@ -7,12 +7,13 @@
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
 
-export type Role = "director" | "actor" | "judge";
+export type Role = "director" | "actor" | "judge" | "compiler";
 
 const MODELS: Record<Role, string[]> = {
   director: ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.5-flash-lite"], // ~1s, careful judgement
   actor: ["gemini-2.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"], // fastest, it only phrases beats
   judge: ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"], // one call per case, can take longer
+  compiler: ["gemini-2.5-flash", "gemini-3.1-flash-lite"], // reads casebook pages once per case; needs vision and care
 };
 
 // Models that answered 429/404/410 are skipped for a while.
@@ -30,12 +31,21 @@ function candidates(role: Role): string[] {
   return live.length ? live : MODELS[role];
 }
 
-type GenerateOpts = { role: Role; system?: string; json?: boolean; temperature?: number; maxTokens?: number; timeoutMs?: number };
+type GenerateOpts = {
+  role: Role;
+  system?: string;
+  json?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  timeoutMs?: number;
+  images?: { mimeType: string; data: string }[]; // base64, sent alongside the prompt
+};
 
 export async function generate(prompt: string, opts: GenerateOpts): Promise<string> {
   let lastError = "no model tried";
   for (const name of candidates(opts.role)) {
-    const thinking = name.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: opts.role === "judge" ? 1024 : 0 } } : {};
+    const budget = opts.role === "compiler" ? 2048 : opts.role === "judge" ? 1024 : 0;
+    const thinking = name.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: budget } } : {};
     try {
       const res = await fetch(`${BASE}/models/${name}:generateContent`, {
         method: "POST",
@@ -43,7 +53,7 @@ export async function generate(prompt: string, opts: GenerateOpts): Promise<stri
         signal: AbortSignal.timeout(opts.timeoutMs ?? 12_000),
         body: JSON.stringify({
           systemInstruction: opts.system ? { parts: [{ text: opts.system }] } : undefined,
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          contents: [{ role: "user", parts: [...(opts.images ?? []).map((inlineData) => ({ inlineData })), { text: prompt }] }],
           generationConfig: {
             temperature: opts.temperature ?? 0.4,
             maxOutputTokens: opts.maxTokens ?? 800,

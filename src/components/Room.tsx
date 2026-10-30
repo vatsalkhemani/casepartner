@@ -6,11 +6,13 @@ import type { SessionState } from "@/lib/interviewer/session";
 import type { TurnEvent } from "@/lib/interviewer/engine";
 import type { Debrief as DebriefData } from "@/lib/interviewer/debrief";
 import { createBrowserVoice, micLevel, type VoiceIO } from "@/lib/voice/browser";
+import type { CasePack } from "@/lib/case/schema";
+import { forServer, getUpload } from "@/lib/uploads";
 import { Aurora, type Presence } from "./Aurora";
 import { ExhibitSheet } from "./ExhibitSheet";
 import { Debrief } from "./Debrief";
 
-type Props = { caseId: string; format: SessionState["format"]; mode: "voice" | "text"; title: string };
+type Props = { caseId: string; format: SessionState["format"]; mode: "voice" | "text"; title: string; uploaded?: boolean };
 type TurnResponse = { state: SessionState; speech: string; events: TurnEvent[]; mode?: "model" | "rules" };
 type Stage = "ready" | "live" | "selfgrade" | "scoring" | "debrief";
 
@@ -21,7 +23,7 @@ const STATUS: Record<Presence, string> = {
   quiet: "Take your time",
 };
 
-export function Room({ caseId, format, mode, title }: Props) {
+export function Room({ caseId, format, mode, title: givenTitle, uploaded }: Props) {
   const [stage, setStage] = useState<Stage>("ready");
   const [state, setState] = useState<SessionState | null>(null);
   const [presence, setPresence] = useState<Presence>("quiet");
@@ -40,6 +42,19 @@ export function Room({ caseId, format, mode, title }: Props) {
   const [selfGrade, setSelfGrade] = useState<string>("");
   const [debrief, setDebrief] = useState<DebriefData | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  // An uploaded case is read from this browser; the server gets it without images.
+  const [pack, setPack] = useState<CasePack | null>(null);
+  const packRef = useRef<CasePack | null>(null);
+  packRef.current = pack;
+  const title = pack?.title ?? givenTitle;
+  useEffect(() => {
+    if (!uploaded) return;
+    getUpload(caseId).then(
+      (p) => (p ? setPack(p) : setError("This case isn't saved in this browser. Upload it again.")),
+      () => setError("This browser couldn't open its saved cases."),
+    );
+  }, [caseId, uploaded]);
+  const packBody = () => (packRef.current ? { pack: forServer(packRef.current) } : {});
 
   const voice = useRef<VoiceIO | null>(null);
   const stopMic = useRef<(() => void) | null>(null);
@@ -61,8 +76,10 @@ export function Room({ caseId, format, mode, title }: Props) {
   const applyEvents = (events: TurnEvent[]) => {
     for (const e of events) {
       if (e.type === "show_exhibit") {
-        setActive(e.exhibit);
-        setSeen((s) => (s.some((x) => x.id === e.exhibit.id) ? s : [...s, e.exhibit]));
+        const local = packRef.current?.exhibits.find((x) => x.id === e.exhibit.id);
+        const exhibit = local?.image ? { ...e.exhibit, image: local.image } : e.exhibit;
+        setActive(exhibit);
+        setSeen((s) => (s.some((x) => x.id === exhibit.id) ? s : [...s, exhibit]));
       }
     }
   };
@@ -112,7 +129,7 @@ export function Room({ caseId, format, mode, title }: Props) {
       // Show the candidate's words straight away.
       setState({ ...current, transcript: [...current.transcript, { role: "candidate", text, t: Date.now() - current.startedAt, phase: current.phase }] });
       try {
-        const res = await fetch("/api/turn", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: current, text }) });
+        const res = await fetch("/api/turn", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: current, text, ...packBody() }) });
         if (!res.ok) throw new Error(`The interviewer didn't respond (${res.status}).`);
         const data = (await res.json()) as TurnResponse;
         stateRef.current = data.state; // listen() below must see the new phase before the next render
@@ -147,7 +164,7 @@ export function Room({ caseId, format, mode, title }: Props) {
       }
     }
     setPresence("thinking");
-    const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId, format }) });
+    const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId, format, ...packBody() }) });
     const data = (await res.json()) as TurnResponse;
     setBrain(data.mode ?? "rules");
     stateRef.current = data.state;
@@ -167,7 +184,7 @@ export function Room({ caseId, format, mode, title }: Props) {
   const score = async (grade: string) => {
     setSelfGrade(grade);
     setStage("scoring");
-    const res = await fetch("/api/debrief", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: stateRef.current }) });
+    const res = await fetch("/api/debrief", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: stateRef.current, ...packBody() }) });
     setDebrief((await res.json()) as DebriefData);
     setStage("debrief");
   };
@@ -243,7 +260,7 @@ export function Room({ caseId, format, mode, title }: Props) {
                   ? "Speak naturally. Alex answers when you pause. Press space to send early, Escape to cut Alex off."
                   : "Type your answers. Alex will read the case to you and reply in text."}
               </p>
-              <button onClick={() => void begin()} className="mt-8 rounded-full bg-lamp px-8 py-4 text-lg font-semibold text-ground">Begin</button>
+              <button onClick={() => void begin()} disabled={uploaded && !pack} className="mt-8 rounded-full bg-lamp px-8 py-4 text-lg font-semibold text-ground disabled:opacity-40">Begin</button>
             </div>
           )}
           {stage === "selfgrade" && (
