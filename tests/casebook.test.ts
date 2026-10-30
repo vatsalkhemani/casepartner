@@ -86,3 +86,20 @@ describe("normalising what the model returns", () => {
     expect(pack!.parts[0].expected.numeric[0].value).toBe(96);
   });
 });
+
+describe("the casebook's final recommendation question", () => {
+  it("moves into the synthesis instead of being asked twice", () => {
+    const raw = {
+      prompt: { readAloud: "Your client..." },
+      parts: [
+        { kind: "exhibit", question: "What do you see?", exhibits: ["A"] },
+        { kind: "qualitative", question: "The CEO is about to walk into the room, what are your recommendations for her?", expected: { insights: ["Raise price", "Justify it through branding"] } },
+      ],
+      exhibits: [{ id: "A", label: "Exhibit A", title: "Costs" }],
+    };
+    const { pack } = parsePack(normalise(raw, "Book", "X"));
+    expect(pack!.parts).toHaveLength(1);
+    expect(pack!.synthesis.question).toMatch(/CEO is about to walk/);
+    expect(pack!.synthesis.recommendation).toBe("Raise price Justify it through branding");
+  });
+});

@@ -114,7 +114,15 @@ export function normalise(raw: Loose, book: string, caseTitle: string): unknown 
     };
   });
   const meta = (raw.meta ?? {}) as Record<string, unknown>;
-  const synth = (raw.synthesis ?? {}) as Record<string, unknown>;
+  const synth = { ...((raw.synthesis ?? {}) as Record<string, unknown>) };
+  // Casebooks number the final recommendation as a question; it belongs in the synthesis,
+  // or Alex asks for a recommendation twice.
+  const last = parts.at(-1);
+  if (last && parts.length > 1 && /\b(ceo|walk(s|ing)? in(to)?|recommend)/i.test(last.question) && !last.exhibits.length) {
+    parts.pop();
+    synth.question ??= last.question;
+    if (!synth.recommendation) synth.recommendation = last.expected.insights.join(" ");
+  }
   const prompt = (raw.prompt ?? {}) as Record<string, unknown>;
   const fw = (raw.sampleFramework ?? {}) as Record<string, unknown>;
   return {
