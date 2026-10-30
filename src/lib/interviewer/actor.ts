@@ -1,0 +1,122 @@
+import type { CasePack, Exhibit } from "../case/schema";
+import type { SessionState } from "./session";
+import { factById } from "./policy";
+
+// What the interviewer says this turn, decided by the engine. The actor only
+// phrases these beats; it never decides what to reveal.
+export type Beat =
+  | { kind: "ack" }
+  | { kind: "fact"; text: string }
+  | { kind: "no_info" }
+  | { kind: "deflect" }
+  | { kind: "repeat"; text: string }
+  | { kind: "allow_time" }
+  | { kind: "ready_when_you_are" }
+  | { kind: "probe"; text: string }
+  | { kind: "nudge"; level: number; text: string }
+  | { kind: "math_result"; result: "correct" | "wrong" | "magnitude" }
+  | { kind: "steer" }
+  | { kind: "handoff"; label: string; title: string }
+  | { kind: "ask"; text: string }
+  | { kind: "close" };
+
+// Everything the actor is allowed to know. Built from state, so the answer
+// key, sample framework, future parts and unrevealed facts cannot be in it.
+export type ActorView = {
+  persona: string;
+  format: SessionState["format"];
+  client: string;
+  prompt: string;
+  revealedFacts: string[];
+  shownExhibits: Exhibit[];
+  recent: { role: string; text: string }[];
+  beats: Beat[];
+  director: string;
+};
+
+export function actorView(pack: CasePack, state: SessionState, beats: Beat[], director: string): ActorView {
+  return {
+    persona: PERSONA,
+    format: state.format,
+    client: pack.client,
+    prompt: pack.prompt.readAloud,
+    revealedFacts: state.revealedFacts.map((id) => factById(pack, id)?.answer).filter((a): a is string => !!a),
+    shownExhibits: pack.exhibits.filter((e) => state.shownExhibits.includes(e.id)),
+    recent: state.transcript.slice(-8).map((t) => ({ role: t.role, text: t.text })),
+    beats,
+    director,
+  };
+}
+
+export const PERSONA =
+  "You are Alex, an engagement manager at a top strategy consulting firm, giving a live case interview. You are warm, brief and a little busy. You react like a person, never gush, never teach mid-case, and never praise a framework. You speak in short spoken sentences, no lists, no markdown.";
+
+const ACKS = ["Okay.", "Got it.", "Sure.", "Mm-hm.", "Okay, makes sense."];
+
+export function templateLine(beats: Beat[], seed = 0): string {
+  const out: string[] = [];
+  for (const b of beats) {
+    switch (b.kind) {
+      case "ack": out.push(ACKS[seed % ACKS.length]); break;
+      case "fact": out.push(b.text); break;
+      case "no_info": out.push("We don't have much on that. What would you want to know, and why?"); break;
+      case "deflect": out.push("That's for you to work out. What do you think?"); break;
+      case "repeat": out.push(`Sure. ${b.text}`); break;
+      case "allow_time": out.push("Of course. Take your time."); break;
+      case "ready_when_you_are": out.push("Go ahead whenever you're ready."); break;
+      case "probe": out.push(b.text); break;
+      case "nudge": out.push(b.text); break;
+      case "math_result":
+        out.push(b.result === "correct" ? "Yes, that's right." : b.result === "magnitude" ? "Hmm. Does that number sound reasonable to you?" : "Can you walk me through how you got there?");
+        break;
+      case "steer": out.push("Sure, we can come back to that. Before we do, the team just sent something over."); break;
+      case "handoff": out.push(`Here's ${b.label}.`); break;
+      case "ask": out.push(b.text); break;
+      case "close": out.push("Thanks, that's a good place to stop. Let's talk about how it went."); break;
+    }
+  }
+  return out.join(" ");
+}
+
+export function actorPrompt(v: ActorView): string {
+  const exhibits = v.shownExhibits
+    .map((e) => `${e.label}: ${e.title}\n${e.table.columns.join(" | ")}\n${e.table.rows.map((r) => r.join(" | ")).join("\n")}${e.table.note ? `\n${e.table.note}` : ""}`)
+    .join("\n\n");
+  return [
+    v.persona,
+    `The case: ${v.client}. ${v.format === "candidate_led" ? "Candidate-led: let the candidate drive, answer only what they ask." : "Interviewer-led: you guide with specific questions."}`,
+    `Prompt you read earlier: ${v.prompt}`,
+    v.revealedFacts.length ? `Facts already shared: ${v.revealedFacts.join(" ")}` : "",
+    exhibits ? `Exhibits the candidate can see:\n${exhibits}` : "",
+    `Conversation so far:\n${v.recent.map((t) => `${t.role === "interviewer" ? "You" : "Candidate"}: ${t.text}`).join("\n")}`,
+    `Say exactly these things this turn, in this order, in your own natural words (one to three short sentences each, spoken aloud):\n${v.beats.map((b, i) => `${i + 1}. ${describeBeat(b)}`).join("\n")}`,
+    v.director ? `Tone note from your colleague: ${v.director}` : "",
+    "Do not add any information, numbers, hints or opinions about the answer beyond what is listed. Do not summarise the case. Output only what you say.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function describeBeat(b: Beat): string {
+  switch (b.kind) {
+    case "ack": return "A brief, natural acknowledgement of what they just said.";
+    case "fact": return `Share this information: "${b.text}"`;
+    case "no_info": return "Say you don't have data on that, and ask what they would want to know and why.";
+    case "deflect": return "Politely decline: it's for them to work out. Turn it back to them.";
+    case "repeat": return `Repeat this: "${b.text}"`;
+    case "allow_time": return "Tell them to take their time. Nothing else.";
+    case "ready_when_you_are": return "Tell them to go ahead whenever they're ready.";
+    case "probe": return `Ask this probing question: "${b.text}"`;
+    case "nudge": return `Give this hint, no stronger: "${b.text}"`;
+    case "math_result":
+      return b.result === "correct"
+        ? "Confirm their number is right, briefly."
+        : b.result === "magnitude"
+          ? "Without saying it's wrong, ask whether that number sounds reasonable. Do not give the right number."
+          : "Without saying the right number, ask them to walk you through how they got there.";
+    case "steer": return "Say you can come back to that, but first the team just sent something over.";
+    case "handoff": return `Hand over ${b.label} ("${b.title}") as if sliding a sheet across the table.`;
+    case "ask": return `Ask this question: "${b.text}"`;
+    case "close": return "Thank them and end the case. Say you'll talk about how it went.";
+  }
+}
