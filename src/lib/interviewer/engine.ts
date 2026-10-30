@@ -115,6 +115,18 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
       beats.push({ kind: "ask", text: i === 0 ? "Sounds good. Where would you like to start?" : "Good. What would you want to look at next?" });
       return;
     }
+    // Already answered before it was asked? Credit it and move on, as a caser would.
+    if (part.kind === "math" && fromText) {
+      const early = judgeNumbers(fromText, part.expected.numeric);
+      if (early.kind === "correct") {
+        state.numericAttempts.push({ partId: part.id, value: early.value, correct: true, t });
+        part.exhibits.forEach((ex) => { if (!state.shownExhibits.includes(ex)) state.shownExhibits.push(ex); });
+        beats.push({ kind: "ask", text: "You've already got the numbers for the next question, and they're right." });
+        allowPart = part.id;
+        enterPart(i + 1, undefined);
+        return;
+      }
+    }
     part.exhibits.forEach(show);
     beats.push({ kind: "ask", text: part.question });
     state.partAsked = true;
@@ -245,8 +257,9 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
         }
 
         if (HINT_ASK.test(text) && !decision.nudgeLevel) decision.nudgeLevel = 1;
+        const answered = decision.partComplete || decision.answeredQuestion;
         // Findings with no "so what": ask once before moving on, as a caser would.
-        if (decision.partComplete && decision.soWhatMissing && !state.soWhatAsked.includes(part.id) && part.kind !== "brainstorm" && !mathDone) {
+        if (answered && decision.soWhatMissing && !state.soWhatAsked.includes(part.id) && part.kind !== "brainstorm" && !mathDone) {
           state.soWhatAsked.push(part.id);
           beats.push({ kind: "so_what", client: pack.client });
           break;
@@ -254,11 +267,11 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
         const given = state.nudges[part.id] ?? [];
         const stalled = candidateTurnsInPart(state, part.id) >= MAX_TURNS_IN_PART;
         const brainstormDone = part.kind === "brainstorm" && state.brainstormPrompts >= LADDER.brainstorm.length;
-        const complete = mathDone || brainstormDone || (decision.partComplete && part.kind !== "math");
+        const complete = mathDone || brainstormDone || (answered && part.kind !== "math");
 
         if (complete) {
           if (!mathDone) beats.push({ kind: "ack" });
-          enterPart(state.partIndex + 1);
+          enterPart(state.partIndex + 1, text);
         } else if (decision.nudgeLevel > 0 || stalled || (part.kind === "math" && numeric.kind !== "none")) {
           const level = stalled ? 4 : nextRung(part, given);
           recordNudge(part.id, level);

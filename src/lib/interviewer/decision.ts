@@ -16,6 +16,8 @@ export const Decision = z.object({
   structureProbe: z.string().nullable().default(null),
   // parts: enough to move on?
   partComplete: z.boolean().default(false),
+  // the narrow question: did the candidate answer the question this part asks?
+  answeredQuestion: z.boolean().default(false),
   nudgeLevel: z.number().int().min(0).max(4).default(0),
   // math: is the method right, whatever the arithmetic? null = not judged
   approachSound: z.boolean().nullable().default(null),

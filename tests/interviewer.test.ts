@@ -357,6 +357,22 @@ describe("adapting inside the case", () => {
   });
 });
 
+describe("following the candidate's lead", () => {
+  it("a director saying 'they answered the question' closes the part", async () => {
+    const state = (await play(STRONG.slice(0, 5))).at(-1)!.state;
+    const r = await runTurn(pack, state, "Labour is the issue, it grew far faster than revenue.", { director: async () => Decision.parse({ answeredQuestion: true }) }, T0 + 999_000);
+    expect(r.state.partIndex).toBe(1);
+  });
+
+  it("math already done before its question is credited, not asked again", async () => {
+    const state = (await play(STRONG.slice(0, 5))).at(-1)!.state; // on the cost exhibit
+    const r = await runTurn(pack, state, "Labour is the big driver. If it had grown 8 percent it'd be about 15.1, so the excess is about 1.5 million and profit would be about 5.5.", { director: async () => Decision.parse({ answeredQuestion: true }) }, T0 + 999_000);
+    expect(r.speech).toMatch(/already got the numbers/i);
+    expect(r.state.partIndex).toBe(2); // skipped past the math question
+    expect(r.state.numericAttempts.at(-1)).toMatchObject({ partId: "labour-math", correct: true });
+  });
+});
+
 describe("model calls only where they add something", () => {
   it("a plain turn uses the casebook's words; a term question goes to the model", async () => {
     let calls = 0;
