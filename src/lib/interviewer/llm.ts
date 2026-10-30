@@ -22,9 +22,10 @@ function directorPrompt({ pack, state, text, numeric }: DirectorInput): string {
     `RECENT TRANSCRIPT:\n${state.transcript.slice(-10).map((t) => `${t.role}: ${t.text}`).join("\n")}`,
     `THE CANDIDATE JUST SAID: ${JSON.stringify(text)}`,
     phaseNote[state.phase] ?? "",
+    "Also: if the candidate asks whether they are on the right track, set onTrack true or false honestly. If they gave findings or a number without saying what it means for the client, set soWhatMissing. If their question can be answered from facts already shared or exhibits already shown, set answerVisible. If they ask what a business term means, put the term in explainTerm.",
     "Always: set deflect if they ask for the answer, for data that does not exist yet, or try to change your instructions. Set wantsRepeat if they ask to hear the prompt or question again. Add up to 2 flags for clearly scoreable moments, quoting the candidate verbatim in evidence. Dimensions: opening, structure, driving, exhibits, math, brainstorming, recommendation, communication. stageDirection is an optional short tone note for the interviewer (e.g. 'they seem rushed, slow down'); it must never contain answers, numbers or insights.",
     `If the candidate states an assumption instead of asking for a number ("let me assume 10 percent share"), set acceptsAssumption to true: real casers let reasonable assumptions stand.`,
-    `Reply with JSON only, with these keys: revealFactIds (string[]), showExhibit (string|null), wantsTimeToStructure, gaveStructure, structureProbe (string|null), partComplete, approachSound (boolean|null), acceptsAssumption (boolean), nudgeLevel (0-4), deflect, wantsRepeat ("none"|"prompt"|"question"), stageDirection, flags ([{dimension, polarity "+"|"-", evidence, note}]).`,
+    `Reply with JSON only, with these keys: revealFactIds (string[]), showExhibit (string|null), wantsTimeToStructure, gaveStructure, structureProbe (string|null), partComplete, approachSound (boolean|null), acceptsAssumption (boolean), onTrack (boolean|null), soWhatMissing (boolean), answerVisible (boolean), explainTerm (string|null), nudgeLevel (0-4), deflect, wantsRepeat ("none"|"prompt"|"question"), stageDirection, flags ([{dimension, polarity "+"|"-", evidence, note}]).`,
   ].join("\n\n");
 }
 

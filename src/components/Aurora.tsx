@@ -8,8 +8,20 @@ export type Presence = "speaking" | "listening" | "thinking" | "quiet";
 
 // The interviewer, drawn as light. Energy follows voice: the interviewer's
 // speech pulses it, the candidate's mic level lifts it, silence lets it settle.
-export function Aurora({ presence, level, pulse, className = "" }: { presence: Presence; level: number; pulse: number; className?: string }) {
+export function Aurora({ presence, level, pulse, signal, className = "" }: { presence: Presence; level: number; pulse: number; signal?: () => number; className?: string }) {
   const root = useRef<HTMLDivElement>(null);
+
+  // When Alex speaks with real audio, the light follows its loudness frame by frame.
+  useGSAP(
+    () => {
+      if (!signal || presence !== "speaking" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const set = gsap.quickTo(root.current, "--energy", { duration: 0.12, ease: "power1.out" });
+      const tick = () => { set(Math.min(1, 0.45 + signal() * 0.6)); };
+      gsap.ticker.add(tick);
+      return () => gsap.ticker.remove(tick);
+    },
+    { dependencies: [presence, signal], scope: root },
+  );
 
   useGSAP(
     () => {

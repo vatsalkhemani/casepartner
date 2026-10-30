@@ -17,6 +17,10 @@ export type Beat =
   | { kind: "math_result"; result: "correct" | "wrong" | "magnitude" }
   | { kind: "close_enough"; value: string }
   | { kind: "accept_assumption" }
+  | { kind: "on_track" }
+  | { kind: "so_what"; client: string }
+  | { kind: "answer_visible" }
+  | { kind: "explain_term"; term: string }
   | { kind: "steer" }
   | { kind: "handoff"; label: string; title: string }
   | { kind: "ask"; text: string }
@@ -73,6 +77,10 @@ export function templateLine(beats: Beat[], seed = 0): string {
         break;
       case "close_enough": out.push(`Right approach. I get about ${b.value}, but the method is what matters. Let's keep going.`); break;
       case "accept_assumption": out.push("That's a fair assumption. Go with it."); break;
+      case "on_track": out.push("You're heading the right way. Keep going."); break;
+      case "so_what": out.push(`And what does that mean for ${b.client}?`); break;
+      case "answer_visible": out.push("It's in what we've covered so far. Take another look at the numbers in front of you."); break;
+      case "explain_term": out.push(`Sure. ${b.term} is a standard business term; use the usual definition and tell me if you want me to say more.`); break;
       case "steer": out.push("Sure, we can come back to that. Before we do, the team just sent something over."); break;
       case "handoff": out.push(`Here's ${b.label}.`); break;
       case "ask": out.push(b.text); break;
@@ -120,6 +128,10 @@ function describeBeat(b: Beat): string {
           : "Without saying the right number, ask them to walk you through how they got there.";
     case "close_enough": return `Say their method is right, you get about ${b.value}, the method is what matters, and move on. Keep it to one or two sentences.`;
     case "accept_assumption": return "Accept their assumption as reasonable and tell them to go with it.";
+    case "on_track": return "Tell them briefly they're heading the right way and to keep going. Do not add any hint or content.";
+    case "so_what": return `Ask them what that means for ${b.client}. One short question, nothing else.`;
+    case "answer_visible": return "Answer their question, using ONLY the facts already shared and the exhibits listed above. One or two sentences. If the answer is not there, say you don't have that.";
+    case "explain_term": return `Explain the term "${b.term}" in one or two plain sentences, as a general business concept. Use no numbers or facts from this case.`;
     case "steer": return "Say you can come back to that, but first the team just sent something over.";
     case "handoff": return `Hand over ${b.label} ("${b.title}") as if sliding a sheet across the table.`;
     case "ask": return `Ask this question: "${b.text}"`;

@@ -15,6 +15,7 @@ export function StartForm({ cases }: { cases: CaseSummary[] }) {
   const [format, setFormat] = useState<(typeof FORMATS)[number]["id"]>("candidate_led");
   const [mode, setMode] = useState<"voice" | "text">("voice");
   const [voiceOk, setVoiceOk] = useState(true);
+  const [voice, setVoice] = useState<"Charon" | "Kore">("Charon");
 
   useEffect(() => {
     const w = window as unknown as Record<string, unknown>;
@@ -30,7 +31,7 @@ export function StartForm({ cases }: { cases: CaseSummary[] }) {
       className="rounded-2xl bg-ground-2 p-6 sm:p-8"
       onSubmit={(e) => {
         e.preventDefault();
-        router.push(`/room?case=${caseId}&format=${format}&mode=${mode}`);
+        router.push(`/room?case=${caseId}&format=${format}&mode=${mode}&voice=${voice}`);
       }}
     >
       <h2 className="font-serif text-3xl">Today&apos;s case</h2>
@@ -71,6 +72,17 @@ export function StartForm({ cases }: { cases: CaseSummary[] }) {
           ))}
         </div>
         {!voiceOk && <p className="mt-2 text-sm text-ink-3">Voice needs Chrome or Edge on a laptop. You can type instead.</p>}
+        {mode === "voice" && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-ink-2">
+            Alex&apos;s voice
+            {(["Charon", "Kore"] as const).map((v) => (
+              <label key={v} className={`cursor-pointer rounded-full px-3 py-1.5 ${voice === v ? "bg-ground-3 text-ink" : "hover:bg-ground-3/60"}`}>
+                <input type="radio" name="voice" className="sr-only" checked={voice === v} onChange={() => setVoice(v)} />
+                {v === "Charon" ? "Deeper" : "Brighter"}
+              </label>
+            ))}
+          </div>
+        )}
       </fieldset>
 
       <button type="submit" className="mt-8 w-full rounded-full bg-lamp px-6 py-4 text-lg font-semibold text-ground transition-transform hover:scale-[1.01] active:scale-[0.99]">

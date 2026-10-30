@@ -5,14 +5,15 @@ import type { Exhibit } from "@/lib/case/schema";
 import type { SessionState } from "@/lib/interviewer/session";
 import type { TurnEvent } from "@/lib/interviewer/engine";
 import type { Debrief as DebriefData } from "@/lib/interviewer/debrief";
-import { createBrowserVoice, micLevel, type VoiceIO } from "@/lib/voice/browser";
+import { micLevel, type VoiceIO } from "@/lib/voice/browser";
+import { createGeminiVoice, type Voice } from "@/lib/voice/gemini";
 import type { CasePack } from "@/lib/case/schema";
 import { forServer, getUpload } from "@/lib/uploads";
 import { Aurora, type Presence } from "./Aurora";
 import { ExhibitSheet } from "./ExhibitSheet";
 import { Debrief } from "./Debrief";
 
-type Props = { caseId: string; format: SessionState["format"]; mode: "voice" | "text"; title: string; uploaded?: boolean };
+type Props = { caseId: string; format: SessionState["format"]; mode: "voice" | "text"; title: string; uploaded?: boolean; voiceName?: Voice };
 type TurnResponse = { state: SessionState; speech: string; events: TurnEvent[]; mode?: "model" | "rules" };
 type Stage = "ready" | "live" | "selfgrade" | "scoring" | "debrief";
 
@@ -23,7 +24,7 @@ const STATUS: Record<Presence, string> = {
   quiet: "Take your time",
 };
 
-export function Room({ caseId, format, mode, title: givenTitle, uploaded }: Props) {
+export function Room({ caseId, format, mode, title: givenTitle, uploaded, voiceName = "Charon" }: Props) {
   const [stage, setStage] = useState<Stage>("ready");
   const [state, setState] = useState<SessionState | null>(null);
   const [presence, setPresence] = useState<Presence>("quiet");
@@ -54,9 +55,26 @@ export function Room({ caseId, format, mode, title: givenTitle, uploaded }: Prop
       () => setError("This browser couldn't open its saved cases."),
     );
   }, [caseId, uploaded]);
+  const voiceSignal = useCallback(() => voice.current?.level() ?? 0, []);
   const packBody = () => (packRef.current ? { pack: forServer(packRef.current) } : {});
 
-  const voice = useRef<VoiceIO | null>(null);
+  // Start the session and synthesise the greeting while the "ready" screen is up,
+  // so the case opens the moment Begin is pressed.
+  useEffect(() => {
+    if (uploaded && !pack) return;
+    if (mode === "voice" && !voice.current) voice.current = createGeminiVoice(voiceName);
+    opening.current = fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId, format, ...packBody() }) })
+      .then((r) => (r.ok ? (r.json() as Promise<TurnResponse>) : null))
+      .then((d) => {
+        if (d && mode === "voice") voice.current?.prefetch(d.speech);
+        return d;
+      })
+      .catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId, format, mode, uploaded, pack]);
+
+  const voice = useRef<ReturnType<typeof createGeminiVoice> | null>(null);
+  const opening = useRef<Promise<TurnResponse | null> | null>(null);
   const stopMic = useRef<(() => void) | null>(null);
   const stateRef = useRef<SessionState | null>(null);
   const busy = useRef(false);
@@ -158,7 +176,7 @@ export function Room({ caseId, format, mode, title: givenTitle, uploaded }: Prop
   const begin = async () => {
     setStage("live");
     if (mode === "voice") {
-      voice.current = createBrowserVoice();
+      voice.current ??= createGeminiVoice(voiceName);
       try {
         stopMic.current = await micLevel((v) => setLevel(v));
       } catch {
@@ -166,8 +184,9 @@ export function Room({ caseId, format, mode, title: givenTitle, uploaded }: Prop
       }
     }
     setPresence("thinking");
-    const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId, format, ...packBody() }) });
-    const data = (await res.json()) as TurnResponse;
+    const data = (await opening.current) ?? ((await (await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId, format, ...packBody() }) })).json()) as TurnResponse);
+    // the clock starts when the candidate does, not when the page loaded
+    data.state = { ...data.state, startedAt: Date.now() };
     setBrain(data.mode ?? "rules");
     stateRef.current = data.state;
     setState(data.state);
@@ -225,7 +244,7 @@ export function Room({ caseId, format, mode, title: givenTitle, uploaded }: Prop
           <div className="relative flex flex-1 items-center justify-center">
           <div className={`flex flex-col items-center transition-all duration-700 ${active ? "absolute left-6 top-6 origin-top-left scale-[0.42]" : ""}`}>
             <button onClick={() => voice.current?.cancelSpeech()} title="Tap to stop Alex talking" className="rounded-full">
-              <Aurora presence={presence} level={presence === "listening" ? level : 0} pulse={pulse} className="w-[min(46vw,20rem)]" />
+              <Aurora presence={presence} level={presence === "listening" ? level : 0} pulse={pulse} signal={voiceSignal} className="w-[min(46vw,20rem)]" />
             </button>
             {!active && (
               <div className="mt-6 text-center">

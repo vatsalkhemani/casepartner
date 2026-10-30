@@ -21,6 +21,14 @@ export const Decision = z.object({
   approachSound: z.boolean().nullable().default(null),
   // the candidate stated an assumption rather than asking for data
   acceptsAssumption: z.boolean().default(false),
+  // "am I on the right track?": is the candidate heading the right way? null = not asked
+  onTrack: z.boolean().nullable().default(null),
+  // the candidate gave findings or a number but not what it means for the client
+  soWhatMissing: z.boolean().default(false),
+  // the question can be answered from facts already shared or exhibits already shown
+  answerVisible: z.boolean().default(false),
+  // a business term the candidate asked about, e.g. "EBITDA" (explained generally, never with case data)
+  explainTerm: z.string().max(60).nullable().default(null),
   // candidate is asking for something they cannot have (the answer, a future exhibit)
   deflect: z.boolean().default(false),
   wantsRepeat: z.enum(["none", "prompt", "question"]).default("none"),

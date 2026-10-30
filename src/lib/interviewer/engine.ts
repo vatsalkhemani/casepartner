@@ -2,7 +2,7 @@ import type { CasePack, Exhibit } from "../case/schema";
 import { Decision, type Director } from "./decision";
 import { actorView, templateLine, type ActorView, type Beat } from "./actor";
 import { approachFromSteps, judgeNumbers, type NumericVerdict } from "./numeric";
-import { canShowExhibit, candidateTurnsInPart, currentPart, factById, filterFactIds, GRAB, matchesAny, matchFacts, TIME_ASK } from "./policy";
+import { canShowExhibit, candidateTurnsInPart, CHECK_IN, currentPart, factById, filterFactIds, GRAB, HINT_ASK, matchesAny, matchFacts, TERM_ASK, TIME_ASK } from "./policy";
 import type { Part } from "../case/schema";
 import { claimsAboutUnshown, leaks, unearnedSecrets, unshownTopics } from "./secrets";
 import { ruleDirector } from "./ruleDirector";
@@ -66,6 +66,13 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
   // Guards that hold whatever the director proposes. A model can misread a
   // turn; the case still has to behave like a real one.
   if (GRAB.test(text)) decision.deflect = true;
+  if (decision.explainTerm && !text.toLowerCase().includes(decision.explainTerm.toLowerCase())) decision.explainTerm = null;
+  if (!decision.explainTerm && !decision.deflect) {
+    const m = text.match(TERM_ASK);
+    const term = m && (m[4] ?? m[6] ?? m[7])?.trim();
+    // "what is the goal?" is a clarifying question, not jargon
+    if (term && term.split(/\s+/).length <= 4 && !/^(the|our|their|your|this|that|it|we|they|you)\b/i.test(term)) decision.explainTerm = term;
+  }
   if (decision.wantsTimeToStructure && !TIME_ASK.test(text)) decision.wantsTimeToStructure = false;
   if (state.phase === "structuring") {
     const tries = state.transcript.filter((x) => x.role === "candidate" && x.phase === "structuring").length;
@@ -127,6 +134,27 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
     beats.push({ kind: "repeat", text: decision.wantsRepeat === "question" && part ? part.question : pack.prompt.readAloud });
   } else if (decision.deflect) {
     beats.push({ kind: "deflect" });
+  } else if (decision.explainTerm && !matchFacts(pack, state, text).length) {
+    beats.push({ kind: "explain_term", term: decision.explainTerm });
+  } else if (CHECK_IN.test(text) && state.phase === "part" && state.partAsked) {
+    // An honest signal, as a caser gives one: on track, or the next hint.
+    const part = currentPart(pack, state)!;
+    const onTrack = decision.onTrack ?? (state.nudges[part.id] ?? []).length === 0;
+    if (onTrack) beats.push({ kind: "on_track" });
+    else {
+      const level = nextRung(part, state.nudges[part.id] ?? []);
+      recordNudge(part.id, level);
+      beats.push({ kind: "nudge", level, text: { 1: part.nudges.l1, 2: part.nudges.l2, 3: part.nudges.l3, 4: part.nudges.l4 }[level]! });
+      if (level === 4) {
+        allowPart = part.id;
+        enterPart(state.partIndex + 1);
+      }
+    }
+  } else if (HINT_ASK.test(text) && (state.phase === "structuring" || state.phase === "clarifying") && !decision.gaveStructure) {
+    // Stuck on the structure: point at the shape of the problem, not the answer.
+    beats.push({ kind: "probe", text: `Think about what drives the answer here. What are the two or three things ${pack.client} would need to be true?` });
+  } else if (decision.answerVisible && !matchFacts(pack, state, text).length && state.phase === "part" && !HINT_ASK.test(text)) {
+    beats.push({ kind: "answer_visible" });
   } else {
     // Facts answer questions, and only the facts the question is about. Live
     // runs showed the model handing over geography for "should they raise
@@ -210,6 +238,13 @@ export async function runTurn(pack: CasePack, prev: SessionState, text: string, 
           }
         }
 
+        if (HINT_ASK.test(text) && !decision.nudgeLevel) decision.nudgeLevel = 1;
+        // Findings with no "so what": ask once before moving on, as a caser would.
+        if (decision.partComplete && decision.soWhatMissing && !state.soWhatAsked.includes(part.id) && part.kind !== "brainstorm" && !mathDone) {
+          state.soWhatAsked.push(part.id);
+          beats.push({ kind: "so_what", client: pack.client });
+          break;
+        }
         const given = state.nudges[part.id] ?? [];
         const stalled = candidateTurnsInPart(state, part.id) >= MAX_TURNS_IN_PART;
         const brainstormDone = part.kind === "brainstorm" && state.brainstormPrompts >= LADDER.brainstorm.length;

@@ -38,6 +38,7 @@ export const SessionState = z.object({
     z.object({ partId: z.string(), value: z.number(), correct: z.boolean(), errorType: z.string().optional(), t: z.number() }),
   ),
   brainstormPrompts: z.number().int(),
+  soWhatAsked: z.array(z.string()).default([]), // parts where Alex already asked "so what?"
   transcript: z.array(Turn).max(400),
   flags: z.array(Flag).max(200),
   startedAt: z.number(),
@@ -57,6 +58,7 @@ export function newSession(caseId: string, format: SessionState["format"], now =
     nudges: {},
     numericAttempts: [],
     brainstormPrompts: 0,
+    soWhatAsked: [],
     transcript: [],
     flags: [],
     startedAt: now,

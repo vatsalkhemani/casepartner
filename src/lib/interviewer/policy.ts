@@ -42,6 +42,15 @@ export function nudgeLevelSoFar(state: SessionState, partId: string): number {
 export const GRAB =
   /(\b(what|tell me|give me|just say)\b.{0,20}\b(the )?answers?\b|answer key|expected answers?|ignore\b.{0,30}\binstructions|system prompt|(see|show|give)\b.{0,15}\b(all|every|the rest of|next)\b.{0,15}\bexhibits?|just tell me the number)/i;
 
+// Asking for help: a hint, or saying they are stuck.
+export const HINT_ASK = /\b(can i (get|have) a hint|any hints?|give me a hint|a hint\b|i'?m (stuck|lost)|not sure where to (go|start)|where should i (go|start|look)|what should i look at)\b/i;
+
+// Checking in: "am I on the right track?"
+export const CHECK_IN = /\b(am i on the right track|is that (right|the right direction)|does (that|this) make sense|am i heading|is this (what you|the right))\b/i;
+
+// Asking what a term means.
+export const TERM_ASK = /\b(what (does|do) (the term |you mean by )?["']?([a-z][a-z &-]{1,40}?)["']? mean|what is (a |an )?([a-z][a-z &-]{1,40}?)\?|not familiar with ([a-z][a-z &-]{1,40}))/i;
+
 // Asking for a moment to structure.
 export const TIME_ASK =
   /\b(a|one)\s+(moment|minute|second|sec)\b|\bcouple of minutes\b|\b(gather|structure|organi[sz]e) my thoughts\b|\btime to (think|structure)\b|\btake a (moment|minute|beat)\b/i;

@@ -296,6 +296,67 @@ describe("facts and exhibits behave like a real caser", () => {
   });
 });
 
+describe("adapting inside the case", () => {
+  const inPart = async (n = 5) => (await play(STRONG.slice(0, n))).at(-1)!.state; // Exhibit A is on the table at 5
+  const say = (state: SessionState, text: string, d: Partial<Record<string, unknown>> = {}) =>
+    runTurn(pack, state, text, { director: async () => Decision.parse(d) }, T0 + 999_000);
+
+  it("a hint request gets the next hint, and it counts", async () => {
+    const state = await inPart();
+    const r = await say(state, "Can I get a hint?");
+    expect(r.speech).toBe(pack.parts[0].nudges.l1);
+    expect(r.state.nudges["costs"]).toEqual([1]);
+  });
+
+  it("'am I on the right track?' gets an honest signal: yes when on track", async () => {
+    const r = await say(await inPart(), "Am I on the right track?", { onTrack: true });
+    expect(r.speech).toMatch(/heading the right way/i);
+    expect(r.state.nudges["costs"] ?? []).toEqual([]);
+  });
+
+  it("...and a hint, not false comfort, when not", async () => {
+    const r = await say(await inPart(), "Am I on the right track?", { onTrack: false });
+    expect(r.state.nudges["costs"]).toEqual([1]);
+    expect(r.speech).not.toMatch(/right way/i);
+  });
+
+  it("explains a business term, without case data", async () => {
+    const r = await say(await inPart(), "Sorry, what does contribution margin mean?");
+    expect(r.speech).toMatch(/contribution margin/i);
+  });
+
+  it("'what is the goal?' is a clarifying question, not jargon", async () => {
+    const r0 = startSession(pack, "candidate_led", T0);
+    const r = await runTurn(pack, r0.state, "What is the goal?", rules, T0 + 1000);
+    expect(r.state.revealedFacts).toContain("goal");
+  });
+
+  it("asks 'so what?' once when findings come without meaning, then moves on", async () => {
+    const state = (await play(STRONG.slice(0, 5))).at(-1)!.state; // Exhibit A just handed over
+    const r1 = await say(state, "Labour went from 14 to 16.6 and waste from 0.5 to 1.2.", { partComplete: true, soWhatMissing: true });
+    expect(r1.speech).toMatch(/what does that mean for Lantern Coffee/i);
+    expect(r1.state.partIndex).toBe(0);
+    const r2 = await say(r1.state, "Costs grew faster than revenue, so margins fell.", { partComplete: true, soWhatMissing: true });
+    expect(r2.state.partIndex).toBe(1); // asked once, now it moves on
+  });
+
+  it("answers from what is already on the table", async () => {
+    let seen = "";
+    const state = await inPart();
+    const r = await runTurn(pack, state, "Is the total including waste?", { director: async () => Decision.parse({ answerVisible: true }), actor: async (v) => ((seen = actorPrompt(v)), "Yes, the total includes the waste line.") }, T0 + 999_000);
+    expect(seen).toMatch(/ONLY the facts already shared and the exhibits listed/);
+    expect(seen).toMatch(/Food waste written off/); // the shown exhibit is in the actor's view
+    expect(r.speech).toMatch(/includes the waste/);
+  });
+
+  it("stuck on the structure gets a nudge toward its shape", async () => {
+    const r0 = startSession(pack, "candidate_led", T0);
+    const r1 = await runTurn(pack, r0.state, "Can I take a moment?", rules, T0 + 1000);
+    const r2 = await runTurn(pack, r1.state, "I'm stuck, not sure where to start.", rules, T0 + 2000);
+    expect(r2.speech).toMatch(/what drives the answer/i);
+  });
+});
+
 describe("debrief", () => {
   it("rules mode scores a full strong run and never cites a quote the candidate did not say", async () => {
     const log = await play(STRONG);
